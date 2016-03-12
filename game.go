@@ -8,36 +8,21 @@ import (
 
 	"github.com/DrJosh9000/vec"
 	"github.com/hajimehoshi/ebiten"
-    "github.com/hajimehoshi/ebiten/ebitenutil"
+	"github.com/hajimehoshi/ebiten/ebitenutil"
 )
-
-const windowTitle = "A walk in the park"
 
 var (
 	// Debug controls display of debug graphics.
 	Debug bool
-	// LevelPreview enables showing the whole level, with no triggers.
-	LevelPreview bool
 
+	game      Game
 	gameFrame int
 
 	mouseDown bool
 
-	pixelSize    = 3
-	camSize      = vec.I2{267, 150}
-	camSizeTiles = camSize.Add(vec.I2{tileSize - 1, tileSize - 1}).Div(tileSize).Add(vec.I2{1, 1})
-	camPos       = vec.I2{0, 0} // top left corner, pixels.
-
-	goalAckMarker = Transient{
-		Anim: &Anim{
-			Key:       "mark",
-			Offset:    vec.I2{15, 15},
-			Frames:    4,
-			FrameSize: vec.I2{32, 32},
-			Mode:      AnimOneShot,
-		},
-		birth: -999,
-	}
+	pixelSize = 3
+	camSize   = vec.I2{267, 150}
+	camPos    = vec.I2{0, 0}
 
 	obstacles, paths *vec.Graph
 
@@ -50,18 +35,55 @@ var (
 	}
 )
 
+// Unit can be told to update and provide information for drawing.
+// Examples of units include the player character, NPCs, etc.
+type Unit interface {
+	Sprite
+	Update(frame int, event Event)
+}
+
+// Level abstracts things needed for a base terrain/level.
+type Level interface {
+	// Doodads provides objects above the base, that can be flattened onto the terrain
+	// most of the time.
+	Doodads() []*Doodad
+
+	// Source is the paletted PNG to use as the base terrain layer - pixel at (x,y) becomes
+	// the tile at (x,y).
+	Source() string
+
+	// TileInfos maps indexes to information about the terrain.
+	TileInfos() map[uint8]TileInfo
+
+	// Tiles is an image containing square tiles.
+	Tiles() (key string, tileSize int)
+}
+
+// Game abstracts the non-engine parts of the game: the story, art, level design, etc.
+type Game interface {
+	// Terrain provides the base level.
+	Level() Level
+
+	// Triggers provide some dynamic behaviour.
+	Triggers() map[string]*Trigger
+
+	// Units provides all units in the level.
+	Units() []Unit
+
+	// Viewport is the size of the window and the pixels in the window.
+	Viewport() (camSize vec.I2, pixelSize int)
+}
+
+// Init registers a game and stuff with the engine.
+func Init(g Game, debug bool) {
+	game = g
+	Debug = debug
+	pixelSize, camSize = game.Viewport()
+}
+
 // Load prepares assets for use by the game.
 func Load() error {
-	if LevelPreview {
-		pixelSize = 1
-		camSize = vec.I2{1024, 1024}
-		triggers = nil
-	}
-	if Debug {
-		log.Printf("camSize: %v, camSizeTiles: %v", camSize, camSizeTiles)
-	}
-
-	if err := LoadAllImages(); err != nil {
+	if err := loadAllImages(); err != nil {
 		return err
 	}
 
@@ -71,7 +93,7 @@ func Load() error {
 	}
 	dialogueBubble = b
 
-	if err := LoadTerrain(); err != nil {
+	if err := loadTerrain(game.Level()); err != nil {
 		return err
 	}
 
