@@ -10,8 +10,8 @@ var dialogueBubble *Bubble
 // DialogueLine is information for displaying a singe line of dialogue in a display.
 type DialogueLine struct {
 	Avatars *Anim
-    Frame int
-	Text string
+	Frame   int
+	Text    string
 }
 
 // Dialogue is all the things needed for displaying blocking dialogue text.
@@ -25,22 +25,24 @@ type DialogueDisplay struct {
 // NewDialogue creates a new DialogueDisplay.
 func DialogueFromLine(line DialogueLine) (*DialogueDisplay, error) {
 	textPos := vec.I2{20, camSize.Y - 80 + 5}
-	if line.av != avatarNone {
+	var avatar *Static
+	if line.Avatars != nil || line.Frame >= 0 {
 		// Provide space for the avatar.
-		textPos.X += avatarsAnim.frameSize.X + 5
+		textPos.X += line.Avatars.FrameSize.X + 5
+		avatar = &Static{
+			A: line.Avatars,
+			F: line.Frame,
+			P: vec.I2{15, camSize.Y - 80 + 2},
+		}
 	}
-	t, err := NewText(line.text, camSize.X-textPos.X-20, textPos, false)
+	t, err := NewText(line.Text, camSize.X-textPos.X-20, textPos, false)
 	if err != nil {
 		return nil, err
 	}
 	return &DialogueDisplay{
-		frame: 0,
-		avatar: &Static{
-			anim:  avatarsAnim,
-			frame: int(line.av),
-			pos:   vec.I2{15, camSize.Y - 80 + 2},
-		},
-		text: t,
+		frame:  0,
+		avatar: avatar,
+		text:   t,
 	}, nil
 }
 
@@ -49,7 +51,7 @@ func (d *DialogueDisplay) Draw(screen *ebiten.Image) error {
 	if err := dialogueBubble.Draw(screen); err != nil {
 		return err
 	}
-	if d.avatar.frame >= 0 {
+	if d.avatar != nil {
 		if err := (SpriteParts{d.avatar, false}).Draw(screen); err != nil {
 			return err
 		}

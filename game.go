@@ -23,23 +23,23 @@ var (
 	pixelSize = 3
 	camSize   = vec.I2{267, 150}
 	camPos    = vec.I2{0, 0}
+	title     = "AwakEngine"
 
+	terrain          *Terrain
 	obstacles, paths *vec.Graph
 
+	triggers        map[string]*Trigger
 	dialogueStack   []DialogueLine
 	currentDialogue *DialogueDisplay
 
-	playerLayer = []Sprite{
-		player,
-		&goalAckMarker,
-	}
+	units []Unit
 )
 
 // Unit can be told to update and provide information for drawing.
 // Examples of units include the player character, NPCs, etc.
 type Unit interface {
-	Sprite
-	Update(frame int, event Event)
+	Sprite                         // for drawing
+	Update(frame int, event Event) // time moves on, so compute new state
 }
 
 // Level abstracts things needed for a base terrain/level.
@@ -71,18 +71,15 @@ type Game interface {
 	Units() []Unit
 
 	// Viewport is the size of the window and the pixels in the window.
-	Viewport() (camSize vec.I2, pixelSize int)
-}
-
-// Init registers a game and stuff with the engine.
-func Init(g Game, debug bool) {
-	game = g
-	Debug = debug
-	pixelSize, camSize = game.Viewport()
+	Viewport() (camSize vec.I2, pixelSize int, title string)
 }
 
 // Load prepares assets for use by the game.
-func Load() error {
+func Load(g Game, debug bool) error {
+	game = g
+	Debug = debug
+	camSize, pixelSize, title = game.Viewport()
+
 	if err := loadAllImages(); err != nil {
 		return err
 	}
@@ -93,15 +90,19 @@ func Load() error {
 	}
 	dialogueBubble = b
 
-	if err := loadTerrain(game.Level()); err != nil {
+	t, err := loadTerrain(game.Level())
+	if err != nil {
 		return err
 	}
+	terrain = t
+	obstacles, paths = t.ObstaclesAndPaths(playerFatUL, playerFatDR)
 
-	obstacles, paths = terrain.ObstaclesAndPaths(playerFatUL, playerFatDR)
+	triggers = game.Triggers()
+	units = game.Units()
 	return nil
 }
 
-// Run runs the game (ebiten.Run) in addition to setting up any necessary GIF recording.
+// Run runs the game (ebiten.Run) i n addition to setting up any necessary GIF recording.
 func Run(rf string, frameCount int) error {
 	up := update
 	if rf != "" {
@@ -112,7 +113,7 @@ func Run(rf string, frameCount int) error {
 		defer f.Close()
 		up = ebitenutil.RecordScreenAsGIF(up, f, frameCount)
 	}
-	return ebiten.Run(up, camSize.X, camSize.Y, pixelSize, windowTitle)
+	return ebiten.Run(up, camSize.X, camSize.Y, pixelSize, title)
 }
 
 // drawDebug draws debugging graphics onto the screen if Debug is true.
@@ -167,20 +168,20 @@ func update(screen *ebiten.Image) error {
 	if currentDialogue == nil {
 		// Got any triggers?
 		for k, trig := range triggers {
-			if !trig.fired && trig.active() {
+			if !trig.Fired && trig.Active() {
 				// All dependencies fired?
-				for _, dep := range trig.depends {
-					if !triggers[dep].fired {
+				for _, dep := range trig.Depends {
+					if !triggers[dep].Fired {
 						continue
 					}
 				}
 				if Debug {
-					log.Printf("firing %s with %d dialogues", k, len(trig.dialogues))
+					log.Printf("firing %s with %d dialogues", k, len(trig.Dialogues))
 				}
-				if trig.fire != nil {
-					trig.fire()
+				if trig.Fire != nil {
+					trig.Fire()
 				}
-				dialogueStack = trig.dialogues
+				dialogueStack = trig.Dialogues
 				currentDialogue = nil
 				player.state.a = playerIdle
 				player.path = nil

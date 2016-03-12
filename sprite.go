@@ -9,11 +9,11 @@ import (
 type Transient struct {
 	P     vec.I2
 	Birth int
-	*Anim
+	A     *Anim
 }
 
 // Anim implements Sprite.
-func (t *Transient) Anim() *Anim { return t.Anim }
+func (t *Transient) Anim() *Anim { return t.A }
 
 // Frame implements Sprite.
 func (t *Transient) Frame() int { return (gameFrame - t.Birth) / animationPeriod }
@@ -23,13 +23,13 @@ func (t *Transient) Pos() vec.I2 { return t.P }
 
 // Static just draws a frame.
 type Static struct {
-	P     vec.I2
-	Frame int
-	Anim  *Anim
+	P vec.I2
+	F int
+	A *Anim
 }
 
 // Anim implements Sprite.
-func (s *Static) Anim() *Anim { return s.Anim }
+func (s *Static) Anim() *Anim { return s.A }
 
 // Frame implements Sprite.
 func (s *Static) Frame() int { return s.Frame }

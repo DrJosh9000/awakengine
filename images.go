@@ -12,15 +12,19 @@ var (
 	allData   = make(map[string][]byte)
 )
 
-func RegisterImage(key string, png []bytes) {
+// RegisterImage tells the engine that a key maps to an image.
+// Registered images will be loaded into texture memory in Load.
+func RegisterImage(key string, png []byte) {
 	allData[key] = png
 }
 
-func Image(k string) *ebiten.Image {
-	return allImages[k]
+// Image returns the Image associated with a key. Will return nil
+// if the key isn't registered or the image isn't loaded yet.
+func Image(key string) *ebiten.Image {
+	return allImages[key]
 }
 
-func LoadAllImages() error {
+func loadAllImages() error {
 	allImages = make(map[string]*ebiten.Image)
 	for k, d := range allData {
 		i, err := loadPNG(d, ebiten.FilterNearest)
