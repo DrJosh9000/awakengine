@@ -129,6 +129,9 @@ func (t *Terrain) Query(wc vec.I2) TileInfo {
 	return t.tileInfo[blackTile]
 }
 
+// Size returns the world size.
+func (t *Terrain) Size() vec.I2 { return t.size.Mul(t.tileSize) }
+
 // Tile is the
 func (t *Terrain) Tile(x, y int) TileInfo {
 	if x < 0 || x >= t.size.X || y < 0 || y >= t.size.Y {

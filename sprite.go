@@ -32,7 +32,7 @@ type Static struct {
 func (s *Static) Anim() *Anim { return s.A }
 
 // Frame implements Sprite.
-func (s *Static) Frame() int { return s.Frame }
+func (s *Static) Frame() int { return s.F }
 
 // Pos implements Sprite.
 func (s *Static) Pos() vec.I2 { return s.P }
@@ -44,17 +44,17 @@ type Sprite interface {
 	Pos() vec.I2 // logical / world position.
 }
 
-// ByYPos orders Sprites by Y position (least to greatest).
-type ByYPos []Sprite
+// SpritesByYPos orders Sprites by Y position (least to greatest).
+type SpritesByYPos []Sprite
 
 // Len implements sort.Interface.
-func (b ByYPos) Len() int { return len(b) }
+func (b SpritesByYPos) Len() int { return len(b) }
 
 // Less implements sort.Interface.
-func (b ByYPos) Less(i, j int) bool { return b[i].Pos().Y < b[j].Pos().Y }
+func (b SpritesByYPos) Less(i, j int) bool { return b[i].Pos().Y < b[j].Pos().Y }
 
 // Swap implements sort.Interface.
-func (b ByYPos) Swap(i, j int) { b[i], b[j] = b[j], b[i] }
+func (b SpritesByYPos) Swap(i, j int) { b[i], b[j] = b[j], b[i] }
 
 // SpriteParts implements ebiten.ImageParts for sprite drawing.
 type SpriteParts struct {
@@ -73,11 +73,11 @@ func (s SpriteParts) Len() int { return 1 }
 // Dst implements ebiten.ImageParts.
 func (s SpriteParts) Dst(i int) (x0, y0, x1, y1 int) {
 	a := s.Anim()
-	b := s.Pos().Sub(a.offset)
+	b := s.Pos().Sub(a.Offset)
 	if s.InWorld {
 		b = b.Sub(camPos)
 	}
-	c := b.Add(a.frameSize)
+	c := b.Add(a.FrameSize)
 	return b.X, b.Y, c.X, c.Y
 }
 

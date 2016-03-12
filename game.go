@@ -32,15 +32,30 @@ var (
 	dialogueStack   []DialogueLine
 	currentDialogue *DialogueDisplay
 
-	units []Unit
+	player Unit
+	units  []Unit
 )
 
 // Unit can be told to update and provide information for drawing.
 // Examples of units include the player character, NPCs, etc.
 type Unit interface {
+	Footprint() (ul, dr vec.I2)    // from the sprite position, the ground area of the unit
+	Path() []vec.I2                // the current position is implied
 	Sprite                         // for drawing
 	Update(frame int, event Event) // time moves on, so compute new state
 }
+
+// UnitsByYPos orders Sprites by Y position (least to greatest).
+type UnitsByYPos []Unit
+
+// Len implements sort.Interface.
+func (b UnitsByYPos) Len() int { return len(b) }
+
+// Less implements sort.Interface.
+func (b UnitsByYPos) Less(i, j int) bool { return b[i].Pos().Y < b[j].Pos().Y }
+
+// Swap implements sort.Interface.
+func (b UnitsByYPos) Swap(i, j int) { b[i], b[j] = b[j], b[i] }
 
 // Level abstracts things needed for a base terrain/level.
 type Level interface {
@@ -84,6 +99,9 @@ func Load(g Game, debug bool) error {
 		return err
 	}
 
+	triggers = game.Triggers()
+	units = game.Units()
+
 	b, err := NewBubble(vec.I2{10, camSize.Y - 80}, vec.I2{camSize.X - 20, 70})
 	if err != nil {
 		return err
@@ -95,10 +113,16 @@ func Load(g Game, debug bool) error {
 		return err
 	}
 	terrain = t
-	obstacles, paths = t.ObstaclesAndPaths(playerFatUL, playerFatDR)
 
-	triggers = game.Triggers()
-	units = game.Units()
+	// TODO: distinguish unit 0 as the player.
+	// TODO: compute unfattened static obstacles and fully dynamic paths.
+	// Invert the footprint to fatten the obstacles with.
+	player = units[0]
+	ul, dr := player.Footprint()
+	ul = ul.Mul(-1)
+	dr = dr.Mul(-1)
+	obstacles, paths = t.ObstaclesAndPaths(ul, dr)
+
 	return nil
 }
 
@@ -137,9 +161,9 @@ func drawDebug(screen *ebiten.Image) error {
 	if err := screen.DrawLines(pathsView); err != nil {
 		return err
 	}
-	if len(player.path) > 0 {
+	if len(player.Path()) > 0 {
 		u := player.Pos().Sub(camPos)
-		for _, v := range player.path {
+		for _, v := range player.Path() {
 			v = v.Sub(camPos)
 			if err := screen.DrawLine(u.X, u.Y, v.X, v.Y, color.RGBA{0, 0xff, 0xff, 0xff}); err != nil {
 				return err
@@ -184,7 +208,7 @@ func update(screen *ebiten.Image) error {
 				dialogueStack = trig.Dialogues
 				currentDialogue = nil
 				player.state.a = playerIdle
-				player.path = nil
+				player.Path() = nil
 				if len(dialogueStack) > 0 {
 					d, err := DialogueFromLine(dialogueStack[0])
 					if err != nil {
@@ -192,7 +216,7 @@ func update(screen *ebiten.Image) error {
 					}
 					currentDialogue = d
 				}
-				trig.fired = true
+				trig.Fired = true
 				break
 			}
 		}
@@ -214,7 +238,7 @@ func update(screen *ebiten.Image) error {
 	}
 
 	// Update camera to focus on player.
-	camPos = player.pos.I2().Sub(camSize.Div(2)).ClampLo(vec.I2{0, 0}).ClampHi(terrain.size.Mul(tileSize).Sub(camSize))
+	camPos = player.Pos().Sub(camSize.Div(2)).ClampLo(vec.I2{}).ClampHi(terrain.Size().Sub(camSize))
 
 	// Draw all the things.
 	if err := terrain.Draw(screen); err != nil {
@@ -222,8 +246,8 @@ func update(screen *ebiten.Image) error {
 	}
 
 	// Tiny sort.
-	sort.Sort(ByYPos(playerLayer))
-	for _, s := range playerLayer {
+	sort.Sort(UnitsByYPos(units))
+	for _, s := range units {
 		if err := (SpriteParts{s, true}.Draw(screen)); err != nil {
 			return err
 		}
@@ -231,14 +255,14 @@ func update(screen *ebiten.Image) error {
 
 	// Any doodads overlapping the player?
 	pp := player.Pos()
-	pu := pp.Sub(player.Anim().offset)
-	pd := pu.Add(player.Anim().frameSize)
+	pu := pp.Sub(player.Anim().Offset)
+	pd := pu.Add(player.Anim().FrameSize)
 	for _, dd := range terrain.doodads {
-		if pp.Y >= dd.pos.Y {
+		if pp.Y >= dd.P.Y {
 			continue
 		}
-		tu := dd.pos.Sub(dd.Anim().offset)
-		td := tu.Add(dd.Anim().frameSize)
+		tu := dd.P.Sub(dd.Anim().Offset)
+		td := tu.Add(dd.Anim().FrameSize)
 		if tu.Y > pd.Y || td.Y < pu.Y {
 			// td.Y < pu.Y is essentially given, but consistency.
 			continue
@@ -252,8 +276,8 @@ func update(screen *ebiten.Image) error {
 	}
 
 	// The W is special. All hail the W!
-	wu := theW.pos.Sub(theW.Anim().offset)
-	wd := wu.Add(theW.Anim().frameSize)
+	wu := theW.pos.Sub(theW.Anim().Offset)
+	wd := wu.Add(theW.Anim().FrameSize)
 	cd := camPos.Add(camSize)
 	if (wu.X < cd.X || wd.X >= camPos.X) && (wu.Y < cd.Y || wd.Y >= camPos.X) {
 		if err := (SpriteParts{theW, true}.Draw(screen)); err != nil {
