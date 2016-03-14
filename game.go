@@ -39,6 +39,7 @@ var (
 // Unit can be told to update and provide information for drawing.
 // Examples of units include the player character, NPCs, etc.
 type Unit interface {
+	GoIdle()                       // stop whatever you're doing.
 	Footprint() (ul, dr vec.I2)    // from the sprite position, the ground area of the unit
 	Path() []vec.I2                // the current position is implied
 	Sprite                         // for drawing
@@ -68,7 +69,7 @@ type Level interface {
 	Source() string
 
 	// TileInfos maps indexes to information about the terrain.
-	TileInfos() map[uint8]TileInfo
+	TileInfos() []TileInfo
 
 	// Tiles is an image containing square tiles.
 	Tiles() (key string, tileSize int)
@@ -207,8 +208,7 @@ func update(screen *ebiten.Image) error {
 				}
 				dialogueStack = trig.Dialogues
 				currentDialogue = nil
-				player.state.a = playerIdle
-				player.Path() = nil
+				player.GoIdle()
 				if len(dialogueStack) > 0 {
 					d, err := DialogueFromLine(dialogueStack[0])
 					if err != nil {

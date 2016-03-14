@@ -31,7 +31,15 @@ func loadTerrain(level Level) (*Terrain, error) {
 	k, s := level.Tiles()
 	tilesImg, ok := allImages[k]
 	if !ok {
-		return fmt.Errorf("level tiles %q not a registered image", k)
+		return nil, fmt.Errorf("level tiles %q not a registered image", k)
+	}
+
+	terrain := &Terrain{
+		size:        vec.I2(p.Rect.Max),
+		tiles:       p.Pix,
+		tileInfo:    level.TileInfos(),
+		tileMapSize: vec.NewI2(tilesImg.Size()).Div(s),
+		tileSize:    s,
 	}
 
 	// Prerender terrain to a single texture.
@@ -39,7 +47,7 @@ func loadTerrain(level Level) (*Terrain, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := f.DrawImage(Image(tileKey), &ebiten.DrawImageOptions{ImageParts: (*AllTerrainParts)(terrain)}); err != nil {
+	if err := f.DrawImage(tilesImg, &ebiten.DrawImageOptions{ImageParts: (*AllTerrainParts)(terrain)}); err != nil {
 		return nil, err
 	}
 
@@ -51,20 +59,13 @@ func loadTerrain(level Level) (*Terrain, error) {
 			return nil, err
 		}
 	}
-	return &Terrain{
-		doodads:  d,
-		flat:     f,
-		size:     p.Rect.Max,
-		tileInfo: level.TileInfos(),
-		tiles:    p.Pix,
-		tileSize: s,
-	}, nil
+	return terrain, nil
 }
 
 // TileInfo describes the properties of a tile.
 type TileInfo struct {
 	Name  string
-	Block bool // Player unable to walk through
+	Block bool // Player is unable to walk through?
 }
 
 // AllTerrainParts implements ebiten.ImageParts for drawing the entire terrain.
@@ -84,19 +85,20 @@ func (a *AllTerrainParts) Dst(i int) (x0, y0, x1, y1 int) {
 
 // Src implements ebiten.ImageParts.
 func (a *AllTerrainParts) Src(i int) (x0, y0, x1, y1 int) {
-	x0, y0 = vec.Div(int(a.tiles[i]), tileMapWidth).Mul(a.tileSize).C()
+	x0, y0 = vec.Div(int(a.tiles[i]), a.tileMapSize.X).Mul(a.tileSize).C()
 	x1, y1 = x0+a.tileSize, y0+a.tileSize
 	return
 }
 
 // Terrain is the base layer of the game world.
 type Terrain struct {
-	doodads  []*Doodad     // for the doodad throne
-	flat     *ebiten.Image // prerendered
-	tiles    []uint8       // tilemap index at terrain position (x, y) is tiles[x+y*size.X].
-	tileInfo []TileInfo    // info for tile index
-	tileSize int           // width and height of all tiles
-	size     vec.I2        // in tiles, not pixels.
+	doodads     []*Doodad     // for the doodad throne
+	flat        *ebiten.Image // prerendered
+	tiles       []uint8       // tilemap index at terrain position (x, y) is tiles[x+y*size.X].
+	tileInfo    []TileInfo    // info for tile index
+	tileMapSize vec.I2        // size of the tile map in tiles.
+	tileSize    int           // width and height of all tiles
+	size        vec.I2        // in tiles, not pixels.
 }
 
 // Draw draws the terrain to the screen.
@@ -126,31 +128,32 @@ func (t *Terrain) Query(wc vec.I2) TileInfo {
 	if tx >= 0 && tx < t.size.X && ty >= 0 && ty < t.size.Y {
 		return t.tileInfo[t.tiles[tx+ty*t.size.X]]
 	}
-	return t.tileInfo[blackTile]
+	return TileInfo{Block: true}
 }
 
 // Size returns the world size.
 func (t *Terrain) Size() vec.I2 { return t.size.Mul(t.tileSize) }
 
-// Tile is the
+// Tile gets the information about hte tile at a tile coordinate.
 func (t *Terrain) Tile(x, y int) TileInfo {
 	if x < 0 || x >= t.size.X || y < 0 || y >= t.size.Y {
-		return t.TileInfo{Block: true}
+		return TileInfo{Block: true}
 	}
 	return t.tileInfo[t.tiles[x+t.size.X*y]]
 }
 
 // ObstaclesAndPaths constructs two graphs, the first describing terrain
 // obsctacles, the second describing a network of valid paths around
-// the obstacles.
+// the obstacles. Obstacles will be fattened according to the footprint
+// fatUL, fatDR, and paths will be based on vertices at convex points of
+// the obstacle graph plus 1 pixel in both dimensions outwards from the
+// convex vertex.
 func (t *Terrain) ObstaclesAndPaths(fatUL, fatDR vec.I2) (obstacles, paths *vec.Graph) {
 	o := vec.NewGraph()
 	// Store a separate vertex set for path generation, because we only care
 	// about convex corners.
 	pVerts := make(vec.VertexSet)
-	fatUR := vec.I2{fatDR.X, fatUL.Y}
-	fatDL := vec.I2{fatUL.X, fatDR.Y}
-
+	fatUR, fatDL := vec.I2{fatDR.X, fatUL.Y}, vec.I2{fatUL.X, fatDR.Y}
 	ul, ur, dl, dr := vec.I2{-1, -1}, vec.I2{1, -1}, vec.I2{-1, 1}, vec.I2{1, 1}
 
 	// Generate edges along rows.
@@ -213,7 +216,7 @@ func (t *Terrain) ObstaclesAndPaths(fatUL, fatDR vec.I2) (obstacles, paths *vec.
 		left, right := true, true
 		u := vec.I2{}
 		for j := 0; j < t.size.Y; j++ {
-			ut := vec.I2{i, j}.Mul(tileSize)
+			ut := vec.I2{i, j}.Mul(t.tileSize)
 			cleft := t.Tile(i-1, j).Block
 			cright := t.Tile(i, j).Block
 			if left != cleft || right != cright {
@@ -264,7 +267,7 @@ func (t *Terrain) ObstaclesAndPaths(fatUL, fatDR vec.I2) (obstacles, paths *vec.
 
 	// Generate doodad edges
 	for _, d := range t.doodads {
-		u := d.pos.Sub(d.anim.offset)
+		u := d.Pos().Sub(d.Anim().Offset)
 		u, v := u.Add(d.UL).Add(fatUL), u.Add(d.DR).Add(fatDR)
 		uv, vu := vec.I2{u.X, v.Y}, vec.I2{v.X, u.Y}
 		o.AddEdge(u, uv)

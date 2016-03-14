@@ -1,7 +1,5 @@
 package awakengine
 
-import "github.com/DrJosh9000/vec"
-
 // Trigger is everything to do with reacting to the player or time or ...
 type Trigger struct {
 	Active    func() bool    // can we fire?

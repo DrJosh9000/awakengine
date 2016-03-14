@@ -84,14 +84,14 @@ func (s SpriteParts) Dst(i int) (x0, y0, x1, y1 int) {
 // Src implements ebiten.ImageParts.
 func (s SpriteParts) Src(i int) (x0, y0, x1, y1 int) {
 	a, f := s.Anim(), s.Frame()
-	switch a.mode {
+	switch a.Mode {
 	case AnimOneShot:
-		if f >= a.frames {
+		if f >= a.Frames {
 			return
 		}
 	case AnimLoop:
-		f %= a.frames
+		f %= a.Frames
 	}
-	x0 = f * a.frameSize.X
-	return x0, 0, x0 + a.frameSize.X, a.frameSize.Y
+	x0 = f * a.FrameSize.X
+	return x0, 0, x0 + a.FrameSize.X, a.FrameSize.Y
 }
