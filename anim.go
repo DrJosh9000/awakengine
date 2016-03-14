@@ -5,10 +5,6 @@ import (
 	"github.com/hajimehoshi/ebiten"
 )
 
-// We go at 30 fps... to be more precise, 1 frame per 2 frames at 60fps.
-// Personally I quite liked 20fps, but it was too choppy on iOS.
-const animationPeriod = 3
-
 // AnimPlayback describes the playback modes for animations.
 type AnimPlayback int
 

@@ -1,8 +1,9 @@
 package awakengine
 
 import (
-	"github.com/DrJosh9000/vec"
+	"fmt"
 
+	"github.com/DrJosh9000/vec"
 	"github.com/hajimehoshi/ebiten"
 )
 
@@ -21,10 +22,10 @@ type AllBubbleParts vec.I2
 func NewBubble(pos, size vec.I2) (*Bubble, error) {
 	f, err := ebiten.NewImage(size.X, size.Y, ebiten.FilterNearest)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("creating image: %v", err)
 	}
 	if err := f.DrawImage(allImages["bubble"], &ebiten.DrawImageOptions{ImageParts: AllBubbleParts(size)}); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("drawing bubble: %v", err)
 	}
 	return &Bubble{
 		ul:   pos,

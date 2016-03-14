@@ -26,7 +26,7 @@ type DialogueDisplay struct {
 func DialogueFromLine(line DialogueLine) (*DialogueDisplay, error) {
 	textPos := vec.I2{20, camSize.Y - 80 + 5}
 	var avatar *Static
-	if line.Avatars != nil || line.Frame >= 0 {
+	if line.Avatars != nil && line.Frame >= 0 {
 		// Provide space for the avatar.
 		textPos.X += line.Avatars.FrameSize.X + 5
 		avatar = &Static{

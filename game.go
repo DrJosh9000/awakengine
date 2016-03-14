@@ -1,7 +1,7 @@
 package awakengine
 
 import (
-	"image/color"
+	"fmt"
 	"log"
 	"os"
 	"sort"
@@ -20,10 +20,13 @@ var (
 
 	mouseDown bool
 
-	pixelSize = 3
-	camSize   = vec.I2{267, 150}
-	camPos    = vec.I2{0, 0}
-	title     = "AwakEngine"
+	// One frame of animation for every (animPeriod) frames rendered.
+	// So animation FPS = 60 / animPeriod.
+	animPeriod = 3
+	pixelSize  = 3
+	camSize    = vec.I2{267, 150}
+	camPos     = vec.I2{0, 0}
+	title      = "AwakEngine"
 
 	terrain          *Terrain
 	obstacles, paths *vec.Graph
@@ -32,8 +35,8 @@ var (
 	dialogueStack   []DialogueLine
 	currentDialogue *DialogueDisplay
 
-	player Unit
-	units  []Unit
+	player  Unit
+	sprites []Sprite
 )
 
 // Unit can be told to update and provide information for drawing.
@@ -45,18 +48,6 @@ type Unit interface {
 	Sprite                         // for drawing
 	Update(frame int, event Event) // time moves on, so compute new state
 }
-
-// UnitsByYPos orders Sprites by Y position (least to greatest).
-type UnitsByYPos []Unit
-
-// Len implements sort.Interface.
-func (b UnitsByYPos) Len() int { return len(b) }
-
-// Less implements sort.Interface.
-func (b UnitsByYPos) Less(i, j int) bool { return b[i].Pos().Y < b[j].Pos().Y }
-
-// Swap implements sort.Interface.
-func (b UnitsByYPos) Swap(i, j int) { b[i], b[j] = b[j], b[i] }
 
 // Level abstracts things needed for a base terrain/level.
 type Level interface {
@@ -80,60 +71,65 @@ type Game interface {
 	// Terrain provides the base level.
 	Level() Level
 
+	// Player provides the player unit.
+	Player() Unit
+
+	// Sprites provides all sprites in the level (include the player).
+	Sprites() []Sprite
+
 	// Triggers provide some dynamic behaviour.
 	Triggers() map[string]*Trigger
 
-	// Units provides all units in the level.
-	Units() []Unit
-
 	// Viewport is the size of the window and the pixels in the window.
-	Viewport() (camSize vec.I2, pixelSize int, title string)
+	Viewport() (camSize vec.I2, pixelSize, animPeriod int, title string)
 }
 
-// Load prepares assets for use by the game.
-func Load(g Game, debug bool) error {
+// load prepares assets for use by the game.
+func load(g Game, debug bool) error {
 	game = g
 	Debug = debug
-	camSize, pixelSize, title = game.Viewport()
+	camSize, pixelSize, animPeriod, title = game.Viewport()
 
 	if err := loadAllImages(); err != nil {
-		return err
+		return fmt.Errorf("loading images: %v", err)
 	}
 
+	player = game.Player()
+	sprites = game.Sprites()
 	triggers = game.Triggers()
-	units = game.Units()
-
-	b, err := NewBubble(vec.I2{10, camSize.Y - 80}, vec.I2{camSize.X - 20, 70})
-	if err != nil {
-		return err
-	}
-	dialogueBubble = b
 
 	t, err := loadTerrain(game.Level())
 	if err != nil {
-		return err
+		return fmt.Errorf("loading terrain: %v", err)
 	}
 	terrain = t
 
-	// TODO: distinguish unit 0 as the player.
-	// TODO: compute unfattened static obstacles and fully dynamic paths.
+	b, err := NewBubble(vec.I2{10, camSize.Y - 80}, vec.I2{camSize.X - 20, 70})
+	if err != nil {
+		return fmt.Errorf("loading bubble: %v", err)
+	}
+	dialogueBubble = b
+
+	// TODO: compute unfattened static obstacles and fully dynamic paths to support
+	// multiple units.
 	// Invert the footprint to fatten the obstacles with.
-	player = units[0]
 	ul, dr := player.Footprint()
 	ul = ul.Mul(-1)
 	dr = dr.Mul(-1)
-	obstacles, paths = t.ObstaclesAndPaths(ul, dr)
-
+	obstacles, paths = t.ObstaclesAndPaths(dr, ul)
 	return nil
 }
 
-// Run runs the game (ebiten.Run) i n addition to setting up any necessary GIF recording.
-func Run(rf string, frameCount int) error {
+// Run runs the game (ebiten.Run) in addition to setting up any necessary GIF recording.
+func Run(g Game, debug bool, rf string, frameCount int) error {
+	if err := load(g, debug); err != nil {
+		return err
+	}
 	up := update
 	if rf != "" {
 		f, err := os.Create(rf)
 		if err != nil {
-			return err
+			return fmt.Errorf("creating recording file: %v", err)
 		}
 		defer f.Close()
 		up = ebitenutil.RecordScreenAsGIF(up, f, frameCount)
@@ -141,6 +137,7 @@ func Run(rf string, frameCount int) error {
 	return ebiten.Run(up, camSize.X, camSize.Y, pixelSize, title)
 }
 
+/*
 // drawDebug draws debugging graphics onto the screen if Debug is true.
 func drawDebug(screen *ebiten.Image) error {
 	if !Debug {
@@ -174,6 +171,7 @@ func drawDebug(screen *ebiten.Image) error {
 	}
 	return nil
 }
+*/
 
 // update is the main update function.
 func update(screen *ebiten.Image) error {
@@ -193,7 +191,7 @@ func update(screen *ebiten.Image) error {
 	if currentDialogue == nil {
 		// Got any triggers?
 		for k, trig := range triggers {
-			if !trig.Fired && trig.Active() {
+			if !trig.Fired && trig.Active(gameFrame) {
 				// All dependencies fired?
 				for _, dep := range trig.Depends {
 					if !triggers[dep].Fired {
@@ -204,7 +202,7 @@ func update(screen *ebiten.Image) error {
 					log.Printf("firing %s with %d dialogues", k, len(trig.Dialogues))
 				}
 				if trig.Fire != nil {
-					trig.Fire()
+					trig.Fire(gameFrame)
 				}
 				dialogueStack = trig.Dialogues
 				currentDialogue = nil
@@ -246,8 +244,8 @@ func update(screen *ebiten.Image) error {
 	}
 
 	// Tiny sort.
-	sort.Sort(UnitsByYPos(units))
-	for _, s := range units {
+	sort.Sort(SpritesByYPos(sprites))
+	for _, s := range sprites {
 		if err := (SpriteParts{s, true}.Draw(screen)); err != nil {
 			return err
 		}
@@ -275,21 +273,50 @@ func update(screen *ebiten.Image) error {
 		}
 	}
 
-	// The W is special. All hail the W!
-	wu := theW.pos.Sub(theW.Anim().Offset)
-	wd := wu.Add(theW.Anim().FrameSize)
-	cd := camPos.Add(camSize)
-	if (wu.X < cd.X || wd.X >= camPos.X) && (wu.Y < cd.Y || wd.Y >= camPos.X) {
-		if err := (SpriteParts{theW, true}.Draw(screen)); err != nil {
-			return err
+	/*
+		// The W is special. All hail the W!
+		wu := theW.pos.Sub(theW.Anim().Offset)
+		wd := wu.Add(theW.Anim().FrameSize)
+		cd := camPos.Add(camSize)
+		if (wu.X < cd.X || wd.X >= camPos.X) && (wu.Y < cd.Y || wd.Y >= camPos.X) {
+			if err := (SpriteParts{theW, true}.Draw(screen)); err != nil {
+				return err
+			}
 		}
-	}
+	*/
 
 	if currentDialogue != nil {
 		if err := currentDialogue.Draw(screen); err != nil {
 			return err
 		}
 	}
-	return drawDebug(screen)
-	//return nil
+	//return drawDebug(screen)
+	return nil
+}
+
+// Navigate attempts to construct a path within the terrain.
+func Navigate(from, to vec.I2) []vec.I2 {
+	path, err := vec.FindPath(obstacles, paths, from, to, camPos, camPos.Add(camSize))
+	if err != nil {
+		// Go near to the cursor position.
+		e, q := obstacles.NearestPoint(to)
+		if Debug {
+			log.Printf("nearest edge: %v point: %v", e, q)
+		}
+		q = q.Add(e.V.Sub(e.U).Normal().Sgn()) // Adjust it slightly...
+		path2, err2 := vec.FindPath(obstacles, paths, from, q, camPos, camPos.Add(camSize))
+		if err2 != nil {
+			// Ok... Go as far as we can go.
+			p2, y := obstacles.NearestBlock(from, to)
+			if y {
+				to = p2.Sub(p2.Sub(from).Sgn())
+			}
+			path2 = []vec.I2{to}
+		}
+		path = path2
+	}
+	if Debug {
+		log.Printf("path: %v", path)
+	}
+	return path
 }

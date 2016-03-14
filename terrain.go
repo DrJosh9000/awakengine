@@ -21,7 +21,7 @@ func loadTerrain(level Level) (*Terrain, error) {
 
 	i, err := png.Decode(bytes.NewReader(pngData))
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("loading level source png: %v", err)
 	}
 	p, ok := i.(*image.Paletted)
 	if !ok {
@@ -45,18 +45,20 @@ func loadTerrain(level Level) (*Terrain, error) {
 	// Prerender terrain to a single texture.
 	f, err := ebiten.NewImage(p.Rect.Max.X*s, p.Rect.Max.Y*s, ebiten.FilterNearest)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("creating terrain texture: %v", err)
 	}
 	if err := f.DrawImage(tilesImg, &ebiten.DrawImageOptions{ImageParts: (*AllTerrainParts)(terrain)}); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("drawing all tiles: %v", err)
 	}
+	terrain.flat = f
 
 	// Predraw all doodads, then do limited Z checking & redraw at draw time.
 	d := level.Doodads()
+	terrain.doodads = d
 	sort.Sort(DoodadsByYPos(d))
 	for _, t := range d {
 		if err := (SpriteParts{t, false}.Draw(f)); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("drawing doodad: %v", err)
 		}
 	}
 	return terrain, nil

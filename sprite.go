@@ -16,7 +16,7 @@ type Transient struct {
 func (t *Transient) Anim() *Anim { return t.A }
 
 // Frame implements Sprite.
-func (t *Transient) Frame() int { return (gameFrame - t.Birth) / animationPeriod }
+func (t *Transient) Frame() int { return (gameFrame - t.Birth) / animPeriod }
 
 // Pos implements Sprite.
 func (t *Transient) Pos() vec.I2 { return t.P }
