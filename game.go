@@ -82,6 +82,9 @@ type Level interface {
 
 // Game abstracts the non-engine parts of the game: the story, art, level design, etc.
 type Game interface {
+	// Font is the general/default typeface to use.
+	Font() Font
+
 	// Terrain provides the base level.
 	Level() Level
 

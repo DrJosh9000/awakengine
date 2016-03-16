@@ -49,7 +49,7 @@ func DialogueFromLine(line DialogueLine) (*DialogueDisplay, error) {
 			P: vec.I2{15, camSize.Y - 80 + 2},
 		}
 	}
-	t, err := NewText(line.Text, camSize.X-textPos.X-20, textPos, false)
+	t, err := NewText(line.Text, camSize.X-textPos.X-20, textPos, game.Font(), false)
 	if err != nil {
 		return nil, err
 	}
