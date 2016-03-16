@@ -127,9 +127,10 @@ func NewText(txt string, width int, pos vec.I2, font Font, inWorld bool) (*Advan
 		flat:    f,
 		size:    vec.I2{width, y + font.LineHeight()},
 		oneCharacter: &oneCharacter{
-			txt: txt,
-			adv: adv,
-			idx: 0,
+			Font: font,
+			txt:  txt,
+			adv:  adv,
+			idx:  0,
 		},
 	}, nil
 }
