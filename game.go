@@ -54,13 +54,24 @@ var (
 )
 
 // Unit can be told to update and provide information for drawing.
-// Examples of units include the player character, NPCs, etc.
+// Examples of units include the player character, NPCs, etc. Or it
+// could be a unit in an RTS.
 type Unit interface {
-	GoIdle()                       // stop whatever you're doing.
-	Footprint() (ul, dr vec.I2)    // from the sprite position, the ground area of the unit
-	Path() []vec.I2                // the current position is implied
-	Sprite                         // for drawing
-	Update(frame int, event Event) // time moves on, so compute new state
+	// GoIdle asks the unit to stop whatever it's doing ("at ease").
+	GoIdle()
+
+	// Footprint is the rectangle relative to the sprite position with the ground area of the unit.
+	Footprint() (ul, dr vec.I2)
+
+	// Path is the path the unit is currently following. The current position is
+	// implied as the first point.
+	Path() []vec.I2
+
+	// Sprite is here for drawing purposes.
+	Sprite
+
+	// Update asks the unit to update its own state, including the current event.
+	Update(frame int, event Event)
 }
 
 // Level abstracts things needed for a base terrain/level.
