@@ -70,7 +70,8 @@ func (s *oneCharacter) Dst(int) (x0, y0, x1, y1 int) {
 // Advance draws another character to the flat image.
 func (s *AdvancingText) Advance() error {
 	if s.idx < len(s.txt) {
-		if err := s.flat.DrawImage(allImages[s.Font.Source()], &ebiten.DrawImageOptions{ImageParts: s.oneCharacter}); err != nil {
+		//if err := s.flat.DrawImage(allImages[s.Font.Source()], &ebiten.DrawImageOptions{ImageParts: s.oneCharacter}); err != nil {
+		if err := Draw(s.flat, s.Font.Source(), s.oneCharacter); err != nil {
 			return err
 		}
 	}

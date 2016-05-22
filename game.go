@@ -51,6 +51,7 @@ var (
 
 	player  Unit
 	sprites []Sprite
+	objects drawList
 )
 
 // Unit can be told to update and provide information for drawing.
@@ -67,43 +68,38 @@ type Unit interface {
 	// implied as the first point.
 	Path() []vec.I2
 
-	// Sprite is here for drawing purposes.
-	Sprite
+	Pos() vec.I2
 
 	// Update asks the unit to update its own state, including the current event.
 	Update(frame int, event Event)
 }
 
-// Level abstracts things needed for a base terrain/level.
-type Level interface {
-	// Doodads provides objects above the base, that can be flattened onto the terrain
-	// most of the time.
-	Doodads() []*Doodad
-
-	// Source is the paletted PNG to use as the base terrain layer - pixel at (x,y) becomes
-	// the tile at (x,y).
-	Source() string
-
-	// TileInfos maps indexes to information about the terrain.
-	TileInfos() []TileInfo
-
-	// Tiles is an image containing square tiles.
-	Tiles() (key string, tileSize int)
+// Level describes things needed for a base terrain/level.
+type Level struct {
+	Doodads                 []*Doodad
+	MapSize                 vec.I2
+	TileMap, BlockMap       []uint8
+	TileInfos, BlockInfos   []TileInfo
+	TilesetKey, BlocksetKey string
+	TileSize, BlockHeight   int
 }
 
 // Game abstracts the non-engine parts of the game: the story, art, level design, etc.
 type Game interface {
+	// BubbleKey returns the key for the bubble image.
+	BubbleKey() string
+
 	// Font is the general/default typeface to use.
 	Font() Font
 
-	// Terrain provides the base level.
-	Level() Level
+	// Level provides the base level.
+	Level() (*Level, error)
+
+	// Objects provides non-terrain objects.
+	Objects() []Object
 
 	// Player provides the player unit.
 	Player() Unit
-
-	// Sprites provides all sprites in the level (include the player).
-	Sprites() []Sprite
 
 	// Triggers provide some dynamic behaviour.
 	Triggers() map[string]*Trigger
@@ -123,16 +119,23 @@ func load(g Game, debug bool) error {
 	}
 
 	player = game.Player()
-	sprites = game.Sprites()
+	objects = drawList(game.Objects())
 	triggers = game.Triggers()
 
-	t, err := loadTerrain(game.Level())
+	l, err := game.Level()
+	if err != nil {
+		return fmt.Errorf("loading level: %v", err)
+	}
+
+	t, err := loadTerrain(l)
 	if err != nil {
 		return fmt.Errorf("loading terrain: %v", err)
 	}
 	terrain = t
 
-	b, err := NewBubble(vec.I2{10, camSize.Y - 80}, vec.I2{camSize.X - 20, 70})
+	objects = append(objects, terrain.drawList()...)
+
+	b, err := NewBubble(vec.I2{10, camSize.Y - 80}, vec.I2{camSize.X - 20, 70}, game.BubbleKey())
 	if err != nil {
 		return fmt.Errorf("loading bubble: %v", err)
 	}
@@ -263,61 +266,70 @@ func update(screen *ebiten.Image) error {
 		}
 	}
 
-	// Update camera to focus on player.
-	camPos = player.Pos().Sub(camSize.Div(2)).ClampLo(vec.I2{}).ClampHi(terrain.Size().Sub(camSize))
+	pp := player.Pos()
 
-	// Draw all the things.
-	if err := terrain.Draw(screen); err != nil {
+	// Update camera to focus on player.
+	camPos = pp.Sub(camSize.Div(2)).ClampLo(vec.I2{}).ClampHi(terrain.Size().Sub(camSize))
+
+	culled := objects.cull()
+	sort.Sort(culled)
+	if err := culled.draw(screen); err != nil {
 		return err
 	}
 
-	// Tiny sort.
-	sort.Sort(SpritesByYPos(sprites))
-	for _, s := range sprites {
-		if err := (SpriteParts{s, true}.Draw(screen)); err != nil {
+	/*
+		// Draw all the things.
+		if err := terrain.DrawBase(screen); err != nil {
 			return err
-		}
-	}
-
-	// Any doodads overlapping the player?
-	pp := player.Pos()
-	pu := pp.Sub(player.Anim().Offset)
-	pd := pu.Add(player.Anim().FrameSize)
-	for _, dd := range terrain.doodads {
-		if pp.Y >= dd.P.Y {
-			continue
-		}
-		tu := dd.P.Sub(dd.Anim().Offset)
-		td := tu.Add(dd.Anim().FrameSize)
-		if tu.Y > pd.Y || td.Y < pu.Y {
-			// td.Y < pu.Y is essentially given, but consistency.
-			continue
-		}
-		if tu.X > pd.X || td.X < pu.X {
-			continue
-		}
-		if err := (SpriteParts{dd, true}.Draw(screen)); err != nil {
+		}*/
+	/*
+		if err := terrain.DrawBlocksToY(screen, pp.Y); err != nil {
 			return err
-		}
-	}
+		}*/
 
 	/*
-		// The W is special. All hail the W!
-		wu := theW.pos.Sub(theW.Anim().Offset)
-		wd := wu.Add(theW.Anim().FrameSize)
-		cd := camPos.Add(camSize)
-		if (wu.X < cd.X || wd.X >= camPos.X) && (wu.Y < cd.Y || wd.Y >= camPos.X) {
-			if err := (SpriteParts{theW, true}.Draw(screen)); err != nil {
+		// Tiny sort.
+		sort.Sort(SpritesByYPos(sprites))
+		for _, s := range sprites {
+			if err := (SpriteParts{s, true}.Draw(screen)); err != nil {
 				return err
 			}
 		}
 	*/
-
-	if currentDialogue != nil {
-		if err := currentDialogue.Draw(screen); err != nil {
+	/*
+		// Any doodads overlapping the player?
+		pu := pp.Sub(player.Anim().Offset)
+		pd := pu.Add(player.Anim().FrameSize)
+		for _, dd := range terrain.Doodads {
+			if pp.Y >= dd.P.Y {
+				continue
+			}
+			tu := dd.P.Sub(dd.Anim().Offset)
+			td := tu.Add(dd.Anim().FrameSize)
+			if tu.Y > pd.Y || td.Y < pu.Y {
+				// td.Y < pu.Y is essentially given, but consistency.
+				continue
+			}
+			if tu.X > pd.X || td.X < pu.X {
+				continue
+			}
+			if err := (SpriteParts{dd, true}.Draw(screen)); err != nil {
+				return err
+			}
+		}
+	*/
+	/*
+		if err := terrain.DrawBlocksFromY(screen, pp.Y); err != nil {
 			return err
 		}
-	}
+	*/
+	/*
+		if currentDialogue != nil {
+			if err := currentDialogue.Draw(screen); err != nil {
+				return err
+			}
+		}
+	*/
 	//return drawDebug(screen)
 	return nil
 }

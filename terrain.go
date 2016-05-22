@@ -23,139 +23,243 @@ import (
 	"sort"
 
 	"github.com/DrJosh9000/vec"
-	"github.com/hajimehoshi/ebiten"
+	//"github.com/hajimehoshi/ebiten"
 )
-
-// loadTerrain loads from a paletted image file.
-func loadTerrain(level Level) (*Terrain, error) {
-	pngData, ok := allData[level.Source()]
-	if !ok {
-		return nil, fmt.Errorf("level source %q not a registered image", level.Source())
-	}
-
-	i, err := png.Decode(bytes.NewReader(pngData))
-	if err != nil {
-		return nil, fmt.Errorf("loading level source png: %v", err)
-	}
-	p, ok := i.(*image.Paletted)
-	if !ok {
-		return nil, fmt.Errorf("source png is not a paletted png [%T != *image.Paletted]", i)
-	}
-
-	k, s := level.Tiles()
-	tilesImg, ok := allImages[k]
-	if !ok {
-		return nil, fmt.Errorf("level tiles %q not a registered image", k)
-	}
-
-	terrain := &Terrain{
-		size:        vec.I2(p.Rect.Max),
-		tiles:       p.Pix,
-		tileInfo:    level.TileInfos(),
-		tileMapSize: vec.NewI2(tilesImg.Size()).Div(s),
-		tileSize:    s,
-	}
-
-	// Prerender terrain to a single texture.
-	f, err := ebiten.NewImage(p.Rect.Max.X*s, p.Rect.Max.Y*s, ebiten.FilterNearest)
-	if err != nil {
-		return nil, fmt.Errorf("creating terrain texture: %v", err)
-	}
-	if err := f.DrawImage(tilesImg, &ebiten.DrawImageOptions{ImageParts: (*AllTerrainParts)(terrain)}); err != nil {
-		return nil, fmt.Errorf("drawing all tiles: %v", err)
-	}
-	terrain.flat = f
-
-	// Predraw all doodads, then do limited Z checking & redraw at draw time.
-	d := level.Doodads()
-	terrain.doodads = d
-	sort.Sort(DoodadsByYPos(d))
-	for _, t := range d {
-		if err := (SpriteParts{t, false}.Draw(f)); err != nil {
-			return nil, fmt.Errorf("drawing doodad: %v", err)
-		}
-	}
-	return terrain, nil
-}
 
 // TileInfo describes the properties of a tile.
 type TileInfo struct {
-	Name  string
-	Block bool // Player is unable to walk through?
+	Name     string
+	Blocking bool // Player is unable to walk through?
 }
 
-// AllTerrainParts implements ebiten.ImageParts for drawing the entire terrain.
-type AllTerrainParts Terrain
+// ImageAsMap returns the contents and size of a paletted PNG file.
+func ImageAsMap(imgkey string) ([]uint8, vec.I2, error) {
+	pngData, ok := allData[imgkey]
+	if !ok {
+		return nil, vec.I2{}, fmt.Errorf("source %q not a registered image", imgkey)
+	}
+	i, err := png.Decode(bytes.NewReader(pngData))
+	if err != nil {
+		return nil, vec.I2{}, fmt.Errorf("loading source png: %v", err)
+	}
+	p, ok := i.(*image.Paletted)
+	if !ok {
+		return nil, vec.I2{}, fmt.Errorf("source png is not paletted [%T != *image.Paletted]", i)
+	}
+	return p.Pix, vec.I2(p.Rect.Max), nil
+}
+
+// loadTerrain loads from a paletted image file.
+func loadTerrain(level *Level) (*Terrain, error) {
+	terrain := &Terrain{
+		Level:       level,
+		blockSize:   vec.I2{level.TileSize, level.TileSize + level.BlockHeight},
+		tilesetSize: sizes[level.TilesetKey].Div(level.TileSize),
+	}
+	/*
+		// Prerender terrain layers to a texture.
+		f, err := ebiten.NewImage(level.MapSize.X*level.TileSize, level.MapSize.Y*level.TileSize, ebiten.FilterNearest)
+		if err != nil {
+			return nil, fmt.Errorf("creating terrain texture: %v", err)
+		}
+		if err := Draw(f, level.TilesetKey, (*prerenderBaseLayer)(terrain)); err != nil {
+			return nil, fmt.Errorf("drawing all tiles: %v", err)
+		}
+		terrain.baseLayer = f
+		terrain.baseDrawOpts = &ebiten.DrawImageOptions{
+			ImageParts: (*baseLayer)(terrain),
+		}
+	*/
+	// Predraw all doodads, then do limited Z checking & redraw at draw time.
+	sort.Sort(DoodadsByYPos(level.Doodads))
+	/*
+		for _, t := range level.Doodads {
+			if err := (SpriteParts{t, false}.Draw(f)); err != nil {
+				return nil, fmt.Errorf("drawing doodad: %v", err)
+			}
+		}*/
+
+	return terrain, nil
+}
+
+func (t *Terrain) drawList() drawList {
+	l := make(drawList, len(t.TileMap))
+	for i, c := range t.TileMap {
+		l[i] = &tileObject{
+			Terrain: t,
+			s:       vec.Div(int(c), t.tilesetSize.X).Mul(t.TileSize),
+			d:       vec.Div(i, t.MapSize.X).Mul(t.TileSize),
+		}
+	}
+	// TODO: add blocks here
+	return l
+}
+
+type tileObject struct {
+	*Terrain
+	s, d vec.I2
+}
+
+func (t *tileObject) ImageKey() string { return t.TilesetKey }
+
+func (t *tileObject) Dst() (x0, y0, x1, y1 int) {
+	x0, y0 = t.d.C()
+	x1, y1 = x0+t.TileSize, y0+t.TileSize
+	return
+}
+
+func (t *tileObject) InWorld() bool { return true }
+
+func (t *tileObject) Src() (x0, y0, x1, y1 int) {
+	x0, y0 = t.s.C()
+	x1, y1 = x0+t.TileSize, y0+t.TileSize
+	return
+}
+
+func (t *tileObject) Visible() bool { return true }
+func (t *tileObject) Z() int        { return -100 } // hax
+
+/*
+// prerenderBaseLayer implements ebiten.ImageParts for drawing the entire base layer.
+type prerenderBaseLayer Terrain
 
 // Len implements ebiten.ImageParts.
-func (a *AllTerrainParts) Len() int {
-	return a.size.Area()
+func (a *prerenderBaseLayer) Len() int {
+	return a.MapSize.Area()
 }
 
 // Dst implements ebiten.ImageParts.
-func (a *AllTerrainParts) Dst(i int) (x0, y0, x1, y1 int) {
-	x0, y0 = vec.Div(i, a.size.X).Mul(a.tileSize).C()
-	x1, y1 = x0+a.tileSize, y0+a.tileSize
+func (a *prerenderBaseLayer) Dst(i int) (x0, y0, x1, y1 int) {
+	x0, y0 = vec.Div(i, a.MapSize.X).Mul(a.TileSize).C()
+	x1, y1 = x0+a.TileSize, y0+a.TileSize
 	return
 }
 
 // Src implements ebiten.ImageParts.
-func (a *AllTerrainParts) Src(i int) (x0, y0, x1, y1 int) {
-	x0, y0 = vec.Div(int(a.tiles[i]), a.tileMapSize.X).Mul(a.tileSize).C()
-	x1, y1 = x0+a.tileSize, y0+a.tileSize
+func (a *prerenderBaseLayer) Src(i int) (x0, y0, x1, y1 int) {
+	x0, y0 = vec.Div(int(a.TileMap[i]), a.tilesetSize.X).Mul(a.TileSize).C()
+	x1, y1 = x0+a.TileSize, y0+a.TileSize
 	return
 }
 
-// Terrain is the base layer of the game world.
-type Terrain struct {
-	doodads     []*Doodad     // for the doodad throne
-	flat        *ebiten.Image // prerendered
-	tiles       []uint8       // tilemap index at terrain position (x, y) is tiles[x+y*size.X].
-	tileInfo    []TileInfo    // info for tile index
-	tileMapSize vec.I2        // size of the tile map in tiles.
-	tileSize    int           // width and height of all tiles
-	size        vec.I2        // in tiles, not pixels.
-}
-
-// Draw draws the terrain to the screen.
-func (t *Terrain) Draw(screen *ebiten.Image) error {
-	return screen.DrawImage(t.flat, &ebiten.DrawImageOptions{ImageParts: t})
-}
+// baseLayer draws the base terrain layer to the screen.
+type baseLayer Terrain
 
 // Len implements ebiten.ImageParts.
-func (t *Terrain) Len() int { return 1 }
+func (a *baseLayer) Len() int {
+	return 1
+}
 
 // Dst implements ebiten.ImageParts.
-func (t *Terrain) Dst(int) (x0, y0, x1, y1 int) {
+func (a *baseLayer) Dst(i int) (x0, y0, x1, y1 int) {
 	x1, y1 = camSize.C()
 	return
 }
 
 // Src implements ebiten.ImageParts.
-func (t *Terrain) Src(int) (x0, y0, x1, y1 int) {
+func (a *baseLayer) Src(i int) (x0, y0, x1, y1 int) {
 	x0, y0 = camPos.C()
 	x1, y1 = camPos.Add(camSize).C()
 	return
 }
 
-// Query returns information about the tile at a world coordinate.
-func (t *Terrain) Query(wc vec.I2) TileInfo {
-	tx, ty := wc.Div(t.tileSize).C()
-	if tx >= 0 && tx < t.size.X && ty >= 0 && ty < t.size.Y {
-		return t.tileInfo[t.tiles[tx+ty*t.size.X]]
-	}
-	return TileInfo{Block: true}
+// blocksToY renders the block layer up to a Y limit.
+type blocksToY struct {
+	*Terrain
+	y int
 }
 
-// Size returns the world size.
-func (t *Terrain) Size() vec.I2 { return t.size.Mul(t.tileSize) }
+// Len implements ebiten.ImageParts.
+func (a *blocksToY) Len() int {
+	return 0
+}
 
-// Tile gets the information about hte tile at a tile coordinate.
+// Dst implements ebiten.ImageParts.
+func (a *blocksToY) Dst(i int) (x0, y0, x1, y1 int) {
+	return
+}
+
+// Src implements ebiten.ImageParts.
+func (a *blocksToY) Src(i int) (x0, y0, x1, y1 int) {
+	return
+}
+
+// blocksFromY renders the block layer after a Y limit.
+type blocksFromY struct {
+	*Terrain
+	y int
+}
+
+// Len implements ebiten.ImageParts.
+func (a *blocksFromY) Len() int {
+	return 0
+}
+
+// Dst implements ebiten.ImageParts.
+func (a *blocksFromY) Dst(i int) (x0, y0, x1, y1 int) {
+	return
+}
+
+// Src implements ebiten.ImageParts.
+func (a *blocksFromY) Src(i int) (x0, y0, x1, y1 int) {
+	return
+}
+*/
+
+// Terrain is the base layer of the game world.
+type Terrain struct {
+	*Level
+
+	//baseLayer    *ebiten.Image // prerendered
+	//baseDrawOpts *ebiten.DrawImageOptions
+	blockSize vec.I2 // full size of each block (frame size for blockset)
+	//blockSrc    *ebiten.Image
+	tilesetSize vec.I2 // size of the tile map in tiles.
+	//tileSrc     *ebiten.Image // tileset image
+}
+
+/*
+func (t *Terrain) DrawBase(screen *ebiten.Image) error {
+	return screen.DrawImage(t.baseLayer, t.baseDrawOpts)
+}
+
+func (t *Terrain) DrawBlocksToY(screen *ebiten.Image, y int) error {
+	return screen.DrawImage(t.blockSrc, &ebiten.DrawImageOptions{
+		ImageParts: &blocksToY{t, y},
+	})
+}
+
+func (t *Terrain) DrawBlocksFromY(screen *ebiten.Image, y int) error {
+	return screen.DrawImage(t.blockSrc, &ebiten.DrawImageOptions{
+		ImageParts: &blocksFromY{t, y},
+	})
+}
+*/
+
+// TileCoord returns information about the tile at a world coordinate.
+func (t *Terrain) TileCoord(wc vec.I2) vec.I2 { return wc.Div(t.TileSize) }
+
+// Size returns the world size in pixels.
+func (t *Terrain) Size() vec.I2 { return t.MapSize.Mul(t.TileSize) }
+
+// Tile gets the information about the tile at a tile coordinate.
 func (t *Terrain) Tile(x, y int) TileInfo {
-	if x < 0 || x >= t.size.X || y < 0 || y >= t.size.Y {
-		return TileInfo{Block: true}
+	if x < 0 || x >= t.MapSize.X || y < 0 || y >= t.MapSize.Y {
+		return TileInfo{Name: "out-of-bounds", Blocking: true}
 	}
-	return t.tileInfo[t.tiles[x+t.size.X*y]]
+	i := x + t.MapSize.X*y
+	n := t.TileMap[i]
+	return t.TileInfos[n]
+}
+
+// Block gets the information about the block at a tile coordinate.
+func (t *Terrain) Block(x, y int) TileInfo {
+	if x < 0 || x >= t.MapSize.X || y < 0 || y >= t.MapSize.Y {
+		return TileInfo{Name: "out-of-bounds", Blocking: true}
+	}
+	i := x + t.MapSize.X*y
+	n := t.BlockMap[i]
+	return t.BlockInfos[n]
 }
 
 // ObstaclesAndPaths constructs two graphs, the first describing terrain
@@ -173,13 +277,13 @@ func (t *Terrain) ObstaclesAndPaths(fatUL, fatDR vec.I2) (obstacles, paths *vec.
 	ul, ur, dl, dr := vec.I2{-1, -1}, vec.I2{1, -1}, vec.I2{-1, 1}, vec.I2{1, 1}
 
 	// Generate edges along rows.
-	for j := 0; j <= t.size.Y; j++ {
+	for j := 0; j <= t.MapSize.Y; j++ {
 		up, down := true, true
 		u := vec.I2{}
-		for i := 0; i < t.size.X; i++ {
-			ut := vec.I2{i, j}.Mul(t.tileSize)
-			cup := t.Tile(i, j-1).Block
-			cdown := t.Tile(i, j).Block
+		for i := 0; i < t.MapSize.X; i++ {
+			ut := vec.I2{i, j}.Mul(t.TileSize)
+			cup := t.Tile(i, j-1).Blocking || t.Block(i, j-1).Blocking
+			cdown := t.Tile(i, j).Blocking || t.Block(i, j).Blocking
 			if up != cup || down != cdown {
 				if up && !down {
 					if cdown {
@@ -228,13 +332,13 @@ func (t *Terrain) ObstaclesAndPaths(fatUL, fatDR vec.I2) (obstacles, paths *vec.
 	}
 
 	// Generate edges along columns.
-	for i := 0; i <= t.size.X; i++ {
+	for i := 0; i <= t.MapSize.X; i++ {
 		left, right := true, true
 		u := vec.I2{}
-		for j := 0; j < t.size.Y; j++ {
-			ut := vec.I2{i, j}.Mul(t.tileSize)
-			cleft := t.Tile(i-1, j).Block
-			cright := t.Tile(i, j).Block
+		for j := 0; j < t.MapSize.Y; j++ {
+			ut := vec.I2{i, j}.Mul(t.TileSize)
+			cleft := t.Tile(i-1, j).Blocking || t.Block(i-1, j).Blocking
+			cright := t.Tile(i, j).Blocking || t.Block(i, j).Blocking
 			if left != cleft || right != cright {
 				if left && !right {
 					if cright {
@@ -282,7 +386,7 @@ func (t *Terrain) ObstaclesAndPaths(fatUL, fatDR vec.I2) (obstacles, paths *vec.
 	}
 
 	// Generate doodad edges
-	for _, d := range t.doodads {
+	for _, d := range t.Doodads {
 		u := d.Pos().Sub(d.Anim().Offset)
 		u, v := u.Add(d.UL).Add(fatUL), u.Add(d.DR).Add(fatDR)
 		uv, vu := vec.I2{u.X, v.Y}, vec.I2{v.X, u.Y}

@@ -14,22 +14,23 @@
 
 package awakengine
 
-import "github.com/DrJosh9000/vec"
+import "github.com/hajimehoshi/ebiten"
 
-// AnimPlayback describes the playback modes for animations.
-type AnimPlayback int
+// PartWindow windows an ImageParts to the index range [Start,Start+N).
+type PartWindow struct {
+	ebiten.ImageParts
+	Start, N int
+}
 
-// Playback modes.
-const (
-	AnimOneShot = AnimPlayback(iota)
-	AnimLoop
-)
+// Len implements ebiten.ImageParts.
+func (w *PartWindow) Len() int { return w.N }
 
-// Anim describes an animated sprite that might play.
-type Anim struct {
-	Key       string
-	Offset    vec.I2
-	Frames    int
-	FrameSize vec.I2
-	Mode      AnimPlayback
+// Dst implements ebiten.ImageParts.
+func (w *PartWindow) Dst(i int) (x0, y0, x1, y1 int) {
+	return w.ImageParts.Dst(i - w.Start)
+}
+
+// Src implements ebiten.ImageParts.
+func (w *PartWindow) Src(i int) (x0, y0, x1, y1 int) {
+	return w.ImageParts.Src(i - w.Start)
 }

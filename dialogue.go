@@ -16,7 +16,13 @@ package awakengine
 
 import (
 	"github.com/DrJosh9000/vec"
-	"github.com/hajimehoshi/ebiten"
+	//"github.com/hajimehoshi/ebiten"
+)
+
+const (
+	dialogueBubbleZ = 100000
+	dialogueAvatarZ = 100001
+	dialogueTextZ   = 100001
 )
 
 var dialogueBubble *Bubble
@@ -60,6 +66,7 @@ func DialogueFromLine(line DialogueLine) (*DialogueDisplay, error) {
 	}, nil
 }
 
+/*
 // Draw draws the dialogue.
 func (d *DialogueDisplay) Draw(screen *ebiten.Image) error {
 	if err := dialogueBubble.Draw(screen); err != nil {
@@ -75,6 +82,7 @@ func (d *DialogueDisplay) Draw(screen *ebiten.Image) error {
 	}
 	return nil
 }
+*/
 
 // Update updates things in the dialogue, based on user input or passage of time.
 func (d *DialogueDisplay) Update(event Event) (dismiss bool) {

@@ -33,12 +33,12 @@ type Bubble struct {
 type AllBubbleParts vec.I2
 
 // NewBubble prepares a bubble of the correct size.
-func NewBubble(pos, size vec.I2) (*Bubble, error) {
+func NewBubble(pos, size vec.I2, imgkey string) (*Bubble, error) {
 	f, err := ebiten.NewImage(size.X, size.Y, ebiten.FilterNearest)
 	if err != nil {
 		return nil, fmt.Errorf("creating image: %v", err)
 	}
-	if err := f.DrawImage(allImages["bubble"], &ebiten.DrawImageOptions{ImageParts: AllBubbleParts(size)}); err != nil {
+	if err := Draw(f, imgkey, AllBubbleParts(size)); err != nil {
 		return nil, fmt.Errorf("drawing bubble: %v", err)
 	}
 	return &Bubble{

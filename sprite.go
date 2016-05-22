@@ -16,7 +16,7 @@ package awakengine
 
 import (
 	"github.com/DrJosh9000/vec"
-	"github.com/hajimehoshi/ebiten"
+	//"github.com/hajimehoshi/ebiten"
 )
 
 // Transient is a sprite that starts at a given birth.
@@ -55,9 +55,10 @@ func (s *Static) Pos() vec.I2 { return s.P }
 type Sprite interface {
 	Anim() *Anim
 	Frame() int
-	Pos() vec.I2 // logical / world position.
+	Pos() vec.I2 // world position in pixels
 }
 
+/*
 // SpritesByYPos orders Sprites by Y position (least to greatest).
 type SpritesByYPos []Sprite
 
@@ -69,6 +70,7 @@ func (b SpritesByYPos) Less(i, j int) bool { return b[i].Pos().Y < b[j].Pos().Y 
 
 // Swap implements sort.Interface.
 func (b SpritesByYPos) Swap(i, j int) { b[i], b[j] = b[j], b[i] }
+*/
 
 // SpriteParts implements ebiten.ImageParts for sprite drawing.
 type SpriteParts struct {
@@ -76,16 +78,8 @@ type SpriteParts struct {
 	InWorld bool
 }
 
-// Draw draws the sprite to the screen.
-func (s SpriteParts) Draw(screen *ebiten.Image) error {
-	return screen.DrawImage(s.Anim().Image(), &ebiten.DrawImageOptions{ImageParts: s})
-}
-
-// Len implements ebiten.ImageParts.
-func (s SpriteParts) Len() int { return 1 }
-
 // Dst implements ebiten.ImageParts.
-func (s SpriteParts) Dst(i int) (x0, y0, x1, y1 int) {
+func (s SpriteParts) Dst() (x0, y0, x1, y1 int) {
 	a := s.Anim()
 	b := s.Pos().Sub(a.Offset)
 	if s.InWorld {
@@ -96,7 +90,7 @@ func (s SpriteParts) Dst(i int) (x0, y0, x1, y1 int) {
 }
 
 // Src implements ebiten.ImageParts.
-func (s SpriteParts) Src(i int) (x0, y0, x1, y1 int) {
+func (s SpriteParts) Src() (x0, y0, x1, y1 int) {
 	a, f := s.Anim(), s.Frame()
 	switch a.Mode {
 	case AnimOneShot:
