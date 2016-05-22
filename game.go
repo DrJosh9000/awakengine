@@ -45,9 +45,9 @@ var (
 	terrain          *Terrain
 	obstacles, paths *vec.Graph
 
-	triggers        map[string]*Trigger
-	dialogueStack   []DialogueLine
-	currentDialogue *DialogueDisplay
+	triggers      map[string]*Trigger
+	dialogueStack []DialogueLine
+	dialogue      *DialogueDisplay
 
 	player  Unit
 	sprites []Sprite
@@ -132,14 +132,9 @@ func load(g Game, debug bool) error {
 		return fmt.Errorf("loading terrain: %v", err)
 	}
 	terrain = t
+	objects = append(objects, terrain.parts()...)
 
-	objects = append(objects, terrain.drawList()...)
-
-	b, err := NewBubble(vec.I2{10, camSize.Y - 80}, vec.I2{camSize.X - 20, 70}, game.BubbleKey())
-	if err != nil {
-		return fmt.Errorf("loading bubble: %v", err)
-	}
-	dialogueBubble = b
+	//objects = append(objects, dialogueBubble)
 
 	// TODO: compute unfattened static obstacles and fully dynamic paths to support
 	// multiple units.
@@ -219,7 +214,7 @@ func update(screen *ebiten.Image) error {
 	}
 
 	// Do we proceed with the game, or with the dialogue display?
-	if currentDialogue == nil {
+	if dialogue == nil {
 		// Got any triggers?
 		for k, trig := range triggers {
 			if !trig.Fired && trig.Active(gameFrame) {
@@ -236,33 +231,36 @@ func update(screen *ebiten.Image) error {
 					trig.Fire(gameFrame)
 				}
 				dialogueStack = trig.Dialogues
-				currentDialogue = nil
+				dialogue = nil
 				player.GoIdle()
 				if len(dialogueStack) > 0 {
 					d, err := DialogueFromLine(dialogueStack[0])
 					if err != nil {
 						return err
 					}
-					currentDialogue = d
+					dialogue = d
+					objects = append(objects, dialogue.parts()...)
 				}
 				trig.Fired = true
 				break
 			}
 		}
-		if currentDialogue == nil {
+		if dialogue == nil {
 			gameFrame++
 			player.Update(gameFrame, e)
 		}
-	} else if currentDialogue.Update(e) {
+	} else if dialogue.Update(e) {
 		// Play
+		dialogue.retire = true
 		dialogueStack = dialogueStack[1:]
-		currentDialogue = nil
+		dialogue = nil
 		if len(dialogueStack) > 0 {
 			d, err := DialogueFromLine(dialogueStack[0])
 			if err != nil {
 				return err
 			}
-			currentDialogue = d
+			dialogue = d
+			objects = append(objects, dialogue.parts()...)
 		}
 	}
 
@@ -271,67 +269,10 @@ func update(screen *ebiten.Image) error {
 	// Update camera to focus on player.
 	camPos = pp.Sub(camSize.Div(2)).ClampLo(vec.I2{}).ClampHi(terrain.Size().Sub(camSize))
 
-	culled := objects.cull()
-	sort.Sort(culled)
-	if err := culled.draw(screen); err != nil {
-		return err
-	}
-
-	/*
-		// Draw all the things.
-		if err := terrain.DrawBase(screen); err != nil {
-			return err
-		}*/
-	/*
-		if err := terrain.DrawBlocksToY(screen, pp.Y); err != nil {
-			return err
-		}*/
-
-	/*
-		// Tiny sort.
-		sort.Sort(SpritesByYPos(sprites))
-		for _, s := range sprites {
-			if err := (SpriteParts{s, true}.Draw(screen)); err != nil {
-				return err
-			}
-		}
-	*/
-	/*
-		// Any doodads overlapping the player?
-		pu := pp.Sub(player.Anim().Offset)
-		pd := pu.Add(player.Anim().FrameSize)
-		for _, dd := range terrain.Doodads {
-			if pp.Y >= dd.P.Y {
-				continue
-			}
-			tu := dd.P.Sub(dd.Anim().Offset)
-			td := tu.Add(dd.Anim().FrameSize)
-			if tu.Y > pd.Y || td.Y < pu.Y {
-				// td.Y < pu.Y is essentially given, but consistency.
-				continue
-			}
-			if tu.X > pd.X || td.X < pu.X {
-				continue
-			}
-			if err := (SpriteParts{dd, true}.Draw(screen)); err != nil {
-				return err
-			}
-		}
-	*/
-	/*
-		if err := terrain.DrawBlocksFromY(screen, pp.Y); err != nil {
-			return err
-		}
-	*/
-	/*
-		if currentDialogue != nil {
-			if err := currentDialogue.Draw(screen); err != nil {
-				return err
-			}
-		}
-	*/
-	//return drawDebug(screen)
-	return nil
+	objects = objects.gc()
+	rem := objects.cull()
+	sort.Sort(rem)
+	return rem.draw(screen) // One draw call.
 }
 
 // Navigate attempts to construct a path within the terrain.

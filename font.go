@@ -14,15 +14,12 @@
 
 package awakengine
 
-import (
-	"github.com/DrJosh9000/vec"
-	"github.com/hajimehoshi/ebiten"
-)
+import "github.com/DrJosh9000/vec"
 
 type CharMetrics map[byte]CharInfo
 
 type Font interface {
-	Source() string
+	ImageKey() string
 	Metrics() CharMetrics
 	LineHeight() int
 	YOffset() int
@@ -32,126 +29,117 @@ type CharInfo struct {
 	X, Y, Width, Height, XOffset, YOffset, XAdvance int
 }
 
-// AdvancingText renders text, animated typewriter-style.
-type AdvancingText struct {
-	Pos, size vec.I2
-	InWorld   bool
-
-	*oneCharacter
-	flat *ebiten.Image
-}
-
-// oneCharacter lays out an entire string, then renders one character.
-type oneCharacter struct {
+type Text struct {
+	Pos, Size vec.I2
 	Font
-	txt string
-	idx int
-	adv []vec.I2
+	Semiobject
+	deltaZ int
+	txt    string
+	chars  []oneChar
+	next   int
 }
 
-// Len implements ImageParts.
-func (s *oneCharacter) Len() int { return 1 }
+func (s *Text) parts() drawList {
+	l := make(drawList, len(s.chars))
+	for i := range s.chars {
+		l[i] = &s.chars[i]
+	}
+	return l
+}
+
+func (s *Text) Z() int { return s.Semiobject.Z() + s.deltaZ }
+
+type oneChar struct {
+	*Text
+	pos     vec.I2
+	c       byte
+	visible bool
+}
 
 // Src implements ImageParts.
-func (s *oneCharacter) Src(int) (x0, y0, x1, y1 int) {
-	m := s.Font.Metrics()
-	ci := m[s.txt[s.idx]]
+func (s *oneChar) Src() (x0, y0, x1, y1 int) {
+	m := s.Metrics()
+	ci := m[s.c]
 	return ci.X, ci.Y, ci.X + ci.Width, ci.Y + ci.Height
 }
 
 // Dst implements ImageParts.
-func (s *oneCharacter) Dst(int) (x0, y0, x1, y1 int) {
-	m := s.Font.Metrics()
-	ci := m[s.txt[s.idx]]
-	t := s.adv[s.idx].Add(vec.I2{ci.XOffset, ci.YOffset + s.Font.YOffset()})
-	return t.X, t.Y, t.X + ci.Width, t.Y + ci.Height
+func (s *oneChar) Dst() (x0, y0, x1, y1 int) {
+	m := s.Metrics()
+	ci := m[s.c]
+	x0, y0 = s.Text.Pos.X+s.pos.X+ci.XOffset, s.Text.Pos.Y+s.pos.Y+ci.YOffset+s.YOffset()
+	return x0, y0, x0 + ci.Width, y0 + ci.Height
 }
 
-// Advance draws another character to the flat image.
-func (s *AdvancingText) Advance() error {
-	if s.idx < len(s.txt) {
-		//if err := s.flat.DrawImage(allImages[s.Font.Source()], &ebiten.DrawImageOptions{ImageParts: s.oneCharacter}); err != nil {
-		if err := Draw(s.flat, s.Font.Source(), s.oneCharacter); err != nil {
-			return err
-		}
+func (s *oneChar) Visible() bool { return s.visible && s.Text.Visible() }
+
+// Advance makes the next character visible.
+func (s *Text) Advance() error {
+	if s.next < len(s.chars) {
+		s.chars[s.next].visible = true
 	}
-	s.idx++
+	s.next++
 	return nil
 }
 
-// Draw draws the string to the screen.
-func (s *AdvancingText) Draw(screen *ebiten.Image) error {
-	return screen.DrawImage(s.flat, &ebiten.DrawImageOptions{ImageParts: s})
+// NewText computes a new Text. You *must* specify width.
+func NewText(txt string, width int, pos vec.I2, font Font, parent Semiobject, deltaZ int) (*Text, error) {
+	text := &Text{
+		Pos:        pos,
+		Font:       font,
+		Semiobject: parent,
+		deltaZ:     deltaZ,
+		txt:        txt,
+		next:       0,
+	}
+	text.layout(width)
+	return text, nil
 }
 
-// NewText computes a new AdvancingText. You *must* specify width.
-func NewText(txt string, width int, pos vec.I2, font Font, inWorld bool) (*AdvancingText, error) {
-	adv := make([]vec.I2, len(txt))
-	cm := font.Metrics()
+func (s *Text) layout(width int) {
+	chars := make([]oneChar, 0, len(s.txt))
+	cm := s.Metrics()
 	x, y := 0, 0
-	wordStart := 0
+	wordStartC, wordStartI := 0, 0 // chars index, txt index
 	wrapIt := func(end int) {
-		if x >= width {
-			x = 0
-			y += font.LineHeight()
-			// Fix previous word.
-			for j := wordStart; j < end; j++ {
-				adv[j] = vec.I2{x, y}
-				ci := cm[txt[j]]
-				x += ci.XAdvance
-			}
+		if x < width {
+			return
+		}
+		x = 0
+		y += s.LineHeight()
+		// Fix previous word.
+		for i, j := wordStartC, wordStartI; j < end; i, j = i+1, j+1 {
+			c := s.txt[j]
+			ci := cm[c]
+			chars[i].pos = vec.I2{x, y}
+			x += ci.XAdvance
 		}
 	}
-	for i := range txt {
-		if txt[i] == '\n' {
+	for i := range s.txt {
+		if s.txt[i] == '\n' {
 			x = 0
-			y += font.LineHeight()
-			wordStart = i + 1
+			y += s.LineHeight()
+			wordStartC = len(chars)
+			wordStartI = i + 1
 			continue
 		}
-		if txt[i] == ' ' {
+		c := s.txt[i]
+		ci := cm[c]
+		if s.txt[i] == ' ' {
 			wrapIt(i)
-			wordStart = i + 1
+			wordStartC = len(chars)
+			wordStartI = i + 1
+			x += ci.XAdvance
+			continue
 		}
-		adv[i] = vec.I2{x, y}
-		ci := cm[txt[i]]
+		chars = append(chars, oneChar{
+			Text: s,
+			pos:  vec.I2{x, y},
+			c:    c,
+		})
 		x += ci.XAdvance
 	}
-	wrapIt(len(txt))
-	f, err := ebiten.NewImage(width, y+font.LineHeight(), ebiten.FilterNearest)
-	if err != nil {
-		return nil, err
-	}
-	return &AdvancingText{
-		Pos:     pos,
-		InWorld: inWorld,
-		flat:    f,
-		size:    vec.I2{width, y + font.LineHeight()},
-		oneCharacter: &oneCharacter{
-			Font: font,
-			txt:  txt,
-			adv:  adv,
-			idx:  0,
-		},
-	}, nil
-}
-
-// Len implements ImageParts.
-func (s *AdvancingText) Len() int { return 1 }
-
-// Src implements ImageParts.
-func (s *AdvancingText) Src(int) (x0, y0, x1, y1 int) {
-	x1, y1 = s.size.C()
-	return
-}
-
-// Dst implements ImageParts.
-func (s *AdvancingText) Dst(int) (x0, y0, x1, y1 int) {
-	t := s.Pos
-	if s.InWorld {
-		t = t.Sub(camPos)
-	}
-	x0, y0 = t.C()
-	x1, y1 = t.Add(s.size).C()
-	return
+	wrapIt(len(s.txt))
+	s.chars = chars
+	s.Size = vec.I2{width, y + s.LineHeight()}
 }

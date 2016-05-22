@@ -14,18 +14,9 @@
 
 package awakengine
 
-import (
-	"github.com/DrJosh9000/vec"
-	//"github.com/hajimehoshi/ebiten"
-)
+import "github.com/DrJosh9000/vec"
 
-const (
-	dialogueBubbleZ = 100000
-	dialogueAvatarZ = 100001
-	dialogueTextZ   = 100001
-)
-
-var dialogueBubble *Bubble
+const dialogueZ = 100000
 
 // DialogueLine is information for displaying a singe line of dialogue in a display.
 type DialogueLine struct {
@@ -36,53 +27,61 @@ type DialogueLine struct {
 
 // Dialogue is all the things needed for displaying blocking dialogue text.
 type DialogueDisplay struct {
+	bubble   *Bubble
 	frame    int // frame number for this dialogue.
-	text     *AdvancingText
+	text     *Text
 	complete bool
-	avatar   *Static
+	retire   bool
+	avatar   *StaticSprite
+	visible  bool
 }
 
-// NewDialogue creates a new DialogueDisplay.
+// DialogueFromLine creates a new DialogueDisplay.
 func DialogueFromLine(line DialogueLine) (*DialogueDisplay, error) {
 	textPos := vec.I2{20, camSize.Y - 80 + 5}
-	var avatar *Static
+	var avatar *StaticSprite
 	if line.Avatars != nil && line.Frame >= 0 {
 		// Provide space for the avatar.
 		textPos.X += line.Avatars.FrameSize.X + 5
-		avatar = &Static{
+		avatar = &StaticSprite{
 			A: line.Avatars,
 			F: line.Frame,
 			P: vec.I2{15, camSize.Y - 80 + 2},
 		}
 	}
-	t, err := NewText(line.Text, camSize.X-textPos.X-20, textPos, game.Font(), false)
+	d := &DialogueDisplay{
+		frame:   0,
+		avatar:  avatar,
+		visible: true,
+	}
+	t, err := NewText(line.Text, camSize.X-textPos.X-20, textPos, game.Font(), d, 0)
 	if err != nil {
 		return nil, err
 	}
-	return &DialogueDisplay{
-		frame:  0,
-		avatar: avatar,
-		text:   t,
-	}, nil
+	d.text = t
+	d.bubble = &Bubble{
+		pos:        vec.I2{10, camSize.Y - 80},
+		sz:         vec.I2{camSize.X - 20, 70},
+		imgkey:     game.BubbleKey(),
+		deltaZ:     -1,
+		Semiobject: d,
+	}
+	return d, nil
 }
 
-/*
-// Draw draws the dialogue.
-func (d *DialogueDisplay) Draw(screen *ebiten.Image) error {
-	if err := dialogueBubble.Draw(screen); err != nil {
-		return err
-	}
+func (d *DialogueDisplay) Retire() bool  { return d.retire }
+func (d *DialogueDisplay) InWorld() bool { return false }
+func (d *DialogueDisplay) Visible() bool { return d.visible }
+func (d *DialogueDisplay) Z() int        { return dialogueZ }
+
+func (d *DialogueDisplay) parts() drawList {
+	l := d.bubble.parts()
 	if d.avatar != nil {
-		if err := (SpriteParts{d.avatar, false}).Draw(screen); err != nil {
-			return err
-		}
+		l = append(l, SpriteObject{Sprite: d.avatar, Semiobject: d})
 	}
-	if err := d.text.Draw(screen); err != nil {
-		return err
-	}
-	return nil
+	l = append(l, d.text.parts()...)
+	return l
 }
-*/
 
 // Update updates things in the dialogue, based on user input or passage of time.
 func (d *DialogueDisplay) Update(event Event) (dismiss bool) {
@@ -93,7 +92,7 @@ func (d *DialogueDisplay) Update(event Event) (dismiss bool) {
 		}
 		// Finish.
 		d.complete = true
-		for d.text.idx < len(d.text.txt) {
+		for d.text.next < len(d.text.chars) {
 			d.text.Advance()
 		}
 	}
@@ -101,7 +100,7 @@ func (d *DialogueDisplay) Update(event Event) (dismiss bool) {
 		if d.frame%2 == 0 {
 			d.text.Advance()
 		}
-		if d.text.idx >= len(d.text.txt) {
+		if d.text.next >= len(d.text.chars) {
 			d.complete = true
 		}
 	}

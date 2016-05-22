@@ -82,7 +82,7 @@ func loadTerrain(level *Level) (*Terrain, error) {
 	return terrain, nil
 }
 
-func (t *Terrain) drawList() drawList {
+func (t *Terrain) parts() drawList {
 	l := make(drawList, len(t.TileMap))
 	for i, c := range t.TileMap {
 		l[i] = &tileObject{
@@ -94,6 +94,10 @@ func (t *Terrain) drawList() drawList {
 	// TODO: add blocks here
 	return l
 }
+
+func (t *Terrain) Retire() bool  { return false }
+func (t *Terrain) InWorld() bool { return true }
+func (t *Terrain) Visible() bool { return true }
 
 type tileObject struct {
 	*Terrain
@@ -108,16 +112,12 @@ func (t *tileObject) Dst() (x0, y0, x1, y1 int) {
 	return
 }
 
-func (t *tileObject) InWorld() bool { return true }
-
 func (t *tileObject) Src() (x0, y0, x1, y1 int) {
 	x0, y0 = t.s.C()
 	x1, y1 = x0+t.TileSize, y0+t.TileSize
 	return
 }
-
-func (t *tileObject) Visible() bool { return true }
-func (t *tileObject) Z() int        { return -100 } // hax
+func (t *tileObject) Z() int { return -100 } // hax
 
 /*
 // prerenderBaseLayer implements ebiten.ImageParts for drawing the entire base layer.
