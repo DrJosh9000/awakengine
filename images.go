@@ -100,28 +100,3 @@ func (a *wholeImageAt) Dst(int) (x0, y0, x1, y1 int) {
 func (a *wholeImageAt) Src(int) (x0, y0, x1, y1 int) {
 	return 0, 0, a.sz.X, a.sz.Y
 }
-
-type srcOffset struct {
-	ebiten.ImageParts
-	offset vec.I2
-}
-
-func (o *srcOffset) Src(i int) (x0, y0, x1, y1 int) {
-	x0, y0, x1, y1 = o.ImageParts.Src(i)
-	x0 += o.offset.X
-	x1 += o.offset.X
-	y0 += o.offset.Y
-	y1 += o.offset.Y
-	return
-}
-
-// Draw an image from the composite texture to the destination.
-func Draw(dst *ebiten.Image, src string, parts ebiten.ImageParts) error {
-	o, ok := compositeOffset[src]
-	if !ok {
-		return fmt.Errorf("source key not found [%q]", src)
-	}
-	return dst.DrawImage(composite, &ebiten.DrawImageOptions{
-		ImageParts: &srcOffset{parts, o},
-	})
-}

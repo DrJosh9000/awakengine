@@ -30,7 +30,10 @@ type Sprite interface {
 	Anim() *Anim
 	Pos() vec.I2
 	Frame() int
+	Update(t int)
 }
+
+// TODO: implement particles
 
 type SpriteObject struct {
 	Sprite
@@ -63,3 +66,4 @@ type StaticSprite struct {
 func (s *StaticSprite) Anim() *Anim { return s.A }
 func (s *StaticSprite) Frame() int  { return s.F }
 func (s *StaticSprite) Pos() vec.I2 { return s.P }
+func (s *StaticSprite) Update(int)  {}

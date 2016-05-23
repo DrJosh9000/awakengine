@@ -70,8 +70,8 @@ type Unit interface {
 
 	Pos() vec.I2
 
-	// Update asks the unit to update its own state, including the current event.
-	Update(frame int, event Event)
+	// Update asks the unit to update its own state.
+	//Update(t int)
 }
 
 // Level describes things needed for a base terrain/level.
@@ -92,10 +92,15 @@ type Game interface {
 	// Font is the general/default typeface to use.
 	Font() Font
 
+	// Handle handles events.
+	Handle(t int, e Event)
+
 	// Level provides the base level.
 	Level() (*Level, error)
 
 	// Objects provides non-terrain objects.
+	// Do not include Doodads.
+	// Include the player object and other sprites.
 	Objects() []Object
 
 	// Player provides the player unit.
@@ -247,7 +252,13 @@ func update(screen *ebiten.Image) error {
 		}
 		if dialogue == nil {
 			gameFrame++
-			player.Update(gameFrame, e)
+
+			game.Handle(gameFrame, e)
+			for _, o := range objects {
+				if u, ok := o.(Sprite); ok {
+					u.Update(gameFrame)
+				}
+			}
 		}
 	} else if dialogue.Update(e) {
 		// Play

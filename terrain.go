@@ -20,10 +20,8 @@ import (
 	"image"
 	"image/png"
 	"log"
-	"sort"
 
 	"github.com/DrJosh9000/vec"
-	//"github.com/hajimehoshi/ebiten"
 )
 
 // TileInfo describes the properties of a tile.
@@ -46,52 +44,40 @@ func ImageAsMap(imgkey string) ([]uint8, vec.I2, error) {
 	if !ok {
 		return nil, vec.I2{}, fmt.Errorf("source png is not paletted [%T != *image.Paletted]", i)
 	}
+	//log.Printf("%s: loaded map %v", imgkey, p.Pix)
 	return p.Pix, vec.I2(p.Rect.Max), nil
 }
 
 // loadTerrain loads from a paletted image file.
 func loadTerrain(level *Level) (*Terrain, error) {
+	bs := vec.I2{level.TileSize, level.TileSize + level.BlockHeight}
 	terrain := &Terrain{
-		Level:       level,
-		blockSize:   vec.I2{level.TileSize, level.TileSize + level.BlockHeight},
-		tilesetSize: sizes[level.TilesetKey].Div(level.TileSize),
+		Level:        level,
+		blockSize:    bs,
+		blocksetSize: sizes[level.BlocksetKey].EDiv(bs),
+		tilesetSize:  sizes[level.TilesetKey].Div(level.TileSize),
 	}
-	/*
-		// Prerender terrain layers to a texture.
-		f, err := ebiten.NewImage(level.MapSize.X*level.TileSize, level.MapSize.Y*level.TileSize, ebiten.FilterNearest)
-		if err != nil {
-			return nil, fmt.Errorf("creating terrain texture: %v", err)
-		}
-		if err := Draw(f, level.TilesetKey, (*prerenderBaseLayer)(terrain)); err != nil {
-			return nil, fmt.Errorf("drawing all tiles: %v", err)
-		}
-		terrain.baseLayer = f
-		terrain.baseDrawOpts = &ebiten.DrawImageOptions{
-			ImageParts: (*baseLayer)(terrain),
-		}
-	*/
-	// Predraw all doodads, then do limited Z checking & redraw at draw time.
-	sort.Sort(DoodadsByYPos(level.Doodads))
-	/*
-		for _, t := range level.Doodads {
-			if err := (SpriteParts{t, false}.Draw(f)); err != nil {
-				return nil, fmt.Errorf("drawing doodad: %v", err)
-			}
-		}*/
-
 	return terrain, nil
 }
 
 func (t *Terrain) parts() drawList {
-	l := make(drawList, len(t.TileMap))
-	for i, c := range t.TileMap {
-		l[i] = &tileObject{
+	l := make(drawList, 0, 2*len(t.TileMap))
+	for i := range t.TileMap {
+		l = append(l, &tileObject{
 			Terrain: t,
-			s:       vec.Div(int(c), t.tilesetSize.X).Mul(t.TileSize),
+			i:       i,
 			d:       vec.Div(i, t.MapSize.X).Mul(t.TileSize),
-		}
+		})
 	}
-	// TODO: add blocks here
+	for i := range t.BlockMap {
+		d := vec.Div(i, t.MapSize.X).Mul(t.TileSize)
+		l = append(l, &blockObject{
+			Terrain: t,
+			i:       i,
+			d:       d.Sub(vec.I2{0, t.BlockHeight}),
+			z:       d.Y,
+		})
+	}
 	return l
 }
 
@@ -101,7 +87,8 @@ func (t *Terrain) Visible() bool { return true }
 
 type tileObject struct {
 	*Terrain
-	s, d vec.I2
+	i int // Keep an index in case the map updates dynamically!
+	d vec.I2
 }
 
 func (t *tileObject) ImageKey() string { return t.TilesetKey }
@@ -113,128 +100,43 @@ func (t *tileObject) Dst() (x0, y0, x1, y1 int) {
 }
 
 func (t *tileObject) Src() (x0, y0, x1, y1 int) {
-	x0, y0 = t.s.C()
+	x0, y0 = vec.Div(int(t.TileMap[t.i]), t.tilesetSize.X).Mul(t.TileSize).C()
 	x1, y1 = x0+t.TileSize, y0+t.TileSize
 	return
 }
+
 func (t *tileObject) Z() int { return -100 } // hax
 
-/*
-// prerenderBaseLayer implements ebiten.ImageParts for drawing the entire base layer.
-type prerenderBaseLayer Terrain
-
-// Len implements ebiten.ImageParts.
-func (a *prerenderBaseLayer) Len() int {
-	return a.MapSize.Area()
-}
-
-// Dst implements ebiten.ImageParts.
-func (a *prerenderBaseLayer) Dst(i int) (x0, y0, x1, y1 int) {
-	x0, y0 = vec.Div(i, a.MapSize.X).Mul(a.TileSize).C()
-	x1, y1 = x0+a.TileSize, y0+a.TileSize
-	return
-}
-
-// Src implements ebiten.ImageParts.
-func (a *prerenderBaseLayer) Src(i int) (x0, y0, x1, y1 int) {
-	x0, y0 = vec.Div(int(a.TileMap[i]), a.tilesetSize.X).Mul(a.TileSize).C()
-	x1, y1 = x0+a.TileSize, y0+a.TileSize
-	return
-}
-
-// baseLayer draws the base terrain layer to the screen.
-type baseLayer Terrain
-
-// Len implements ebiten.ImageParts.
-func (a *baseLayer) Len() int {
-	return 1
-}
-
-// Dst implements ebiten.ImageParts.
-func (a *baseLayer) Dst(i int) (x0, y0, x1, y1 int) {
-	x1, y1 = camSize.C()
-	return
-}
-
-// Src implements ebiten.ImageParts.
-func (a *baseLayer) Src(i int) (x0, y0, x1, y1 int) {
-	x0, y0 = camPos.C()
-	x1, y1 = camPos.Add(camSize).C()
-	return
-}
-
-// blocksToY renders the block layer up to a Y limit.
-type blocksToY struct {
+type blockObject struct {
 	*Terrain
-	y int
+	d    vec.I2
+	i, z int
 }
 
-// Len implements ebiten.ImageParts.
-func (a *blocksToY) Len() int {
-	return 0
-}
+func (b *blockObject) ImageKey() string { return b.BlocksetKey }
 
-// Dst implements ebiten.ImageParts.
-func (a *blocksToY) Dst(i int) (x0, y0, x1, y1 int) {
+func (b *blockObject) Dst() (x0, y0, x1, y1 int) {
+	x0, y0 = b.d.C()
+	x1, y1 = b.d.Add(b.blockSize).C()
 	return
 }
 
-// Src implements ebiten.ImageParts.
-func (a *blocksToY) Src(i int) (x0, y0, x1, y1 int) {
+func (b *blockObject) Src() (x0, y0, x1, y1 int) {
+	x0, y0 = vec.Div(int(b.BlockMap[b.i]), b.blocksetSize.X).EMul(b.blockSize).C()
+	x1, y1 = x0+b.blockSize.X, y0+b.blockSize.Y
 	return
 }
 
-// blocksFromY renders the block layer after a Y limit.
-type blocksFromY struct {
-	*Terrain
-	y int
-}
-
-// Len implements ebiten.ImageParts.
-func (a *blocksFromY) Len() int {
-	return 0
-}
-
-// Dst implements ebiten.ImageParts.
-func (a *blocksFromY) Dst(i int) (x0, y0, x1, y1 int) {
-	return
-}
-
-// Src implements ebiten.ImageParts.
-func (a *blocksFromY) Src(i int) (x0, y0, x1, y1 int) {
-	return
-}
-*/
+func (b *blockObject) Z() int { return b.z }
 
 // Terrain is the base layer of the game world.
 type Terrain struct {
 	*Level
 
-	//baseLayer    *ebiten.Image // prerendered
-	//baseDrawOpts *ebiten.DrawImageOptions
-	blockSize vec.I2 // full size of each block (frame size for blockset)
-	//blockSrc    *ebiten.Image
-	tilesetSize vec.I2 // size of the tile map in tiles.
-	//tileSrc     *ebiten.Image // tileset image
+	blockSize    vec.I2 // full size of each block (frame size for blockset)
+	blocksetSize vec.I2 // size of the block map in blocks.
+	tilesetSize  vec.I2 // size of the tile map in tiles.
 }
-
-/*
-func (t *Terrain) DrawBase(screen *ebiten.Image) error {
-	return screen.DrawImage(t.baseLayer, t.baseDrawOpts)
-}
-
-func (t *Terrain) DrawBlocksToY(screen *ebiten.Image, y int) error {
-	return screen.DrawImage(t.blockSrc, &ebiten.DrawImageOptions{
-		ImageParts: &blocksToY{t, y},
-	})
-}
-
-func (t *Terrain) DrawBlocksFromY(screen *ebiten.Image, y int) error {
-	return screen.DrawImage(t.blockSrc, &ebiten.DrawImageOptions{
-		ImageParts: &blocksFromY{t, y},
-	})
-}
-*/
 
 // TileCoord returns information about the tile at a world coordinate.
 func (t *Terrain) TileCoord(wc vec.I2) vec.I2 { return wc.Div(t.TileSize) }

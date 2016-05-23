@@ -51,6 +51,7 @@ func (d drawList) gc() drawList {
 		}
 		l = append(l, o)
 	}
+	//log.Printf("drawList gc'ed %d objects", len(d)-len(l))
 	return l
 }
 
