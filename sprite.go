@@ -33,8 +33,6 @@ type Sprite interface {
 	Update(t int)
 }
 
-// TODO: implement particles
-
 type SpriteObject struct {
 	Sprite
 	Semiobject
