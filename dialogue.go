@@ -97,9 +97,7 @@ func (d *DialogueDisplay) Update(event Event) (dismiss bool) {
 		}
 	}
 	if !d.complete {
-		if d.frame%2 == 0 {
-			d.text.Advance()
-		}
+		d.text.Advance()
 		if d.text.next >= len(d.text.chars) {
 			d.complete = true
 		}

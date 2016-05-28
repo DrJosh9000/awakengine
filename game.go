@@ -50,19 +50,17 @@ var (
 var (
 	config *Config
 
-	game      Game
-	gameFrame int
+	game         Game
+	modelFrame   int
+	displayFrame int
 
 	mouseDown     bool
 	lastCursorPos vec.I2
 
-	// One frame of animation for every (animPeriod) frames rendered.
-	// So animation FPS = 60 / animPeriod.
-	animPeriod = 3
-	pixelSize  = 3
-	camSize    = vec.I2{267, 150}
-	camPos     = vec.I2{0, 0}
-	title      = "AwakEngine"
+	pixelSize = 3
+	camSize   = vec.I2{267, 150}
+	camPos    = vec.I2{0, 0}
+	title     = "AwakEngine"
 
 	terrain          *Terrain
 	obstacles, paths *vec.Graph
@@ -78,6 +76,7 @@ var (
 
 type Config struct {
 	Debug           bool
+	FramesPerUpdate int
 	LevelGeomDump   string
 	RecordingFile   string
 	RecordingFrames int
@@ -139,13 +138,13 @@ type Game interface {
 	Triggers() map[string]*Trigger
 
 	// Viewport is the size of the window and the pixels in the window.
-	Viewport() (camSize vec.I2, pixelSize, animPeriod int, title string)
+	Viewport() (camSize vec.I2, pixelSize int, title string)
 }
 
 // load prepares assets for use by the game.
 func load(g Game) error {
 	game = g
-	camSize, pixelSize, animPeriod, title = game.Viewport()
+	camSize, pixelSize, title = game.Viewport()
 
 	if err := loadAllImages(); err != nil {
 		return fmt.Errorf("loading images: %v", err)
@@ -250,8 +249,8 @@ func drawDebug(screen *ebiten.Image) error {
 }
 */
 
-// update is the main update function.
-func update(screen *ebiten.Image) error {
+// modelUpdate does update stuff, but no drawing. It is called once per config.FramesPerUpdate.
+func modelUpdate() error {
 	// Read inputs
 	md := ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft)
 	if md {
@@ -275,7 +274,7 @@ func update(screen *ebiten.Image) error {
 	if dialogue == nil {
 		// Got any triggers?
 		for k, trig := range triggers {
-			if !trig.Fired && trig.Active(gameFrame) {
+			if !trig.Fired && trig.Active(modelFrame) {
 				// All dependencies fired?
 				for _, dep := range trig.Depends {
 					if !triggers[dep].Fired {
@@ -286,7 +285,7 @@ func update(screen *ebiten.Image) error {
 					log.Printf("firing %s with %d dialogues", k, len(trig.Dialogues))
 				}
 				if trig.Fire != nil {
-					trig.Fire(gameFrame)
+					trig.Fire(modelFrame)
 				}
 				dialogueStack = trig.Dialogues
 				dialogue = nil
@@ -304,12 +303,12 @@ func update(screen *ebiten.Image) error {
 			}
 		}
 		if dialogue == nil {
-			gameFrame++
+			modelFrame++
 
-			game.Handle(gameFrame, e)
+			game.Handle(modelFrame, e)
 			for _, o := range objects {
 				if u, ok := o.(Sprite); ok {
-					u.Update(gameFrame)
+					u.Update(modelFrame)
 				}
 			}
 		}
@@ -327,13 +326,22 @@ func update(screen *ebiten.Image) error {
 			objects = append(objects, dialogue.parts()...)
 		}
 	}
-
 	pp := player.Pos()
 
 	// Update camera to focus on player.
 	camPos = pp.Sub(camSize.Div(2)).ClampLo(vec.I2{}).ClampHi(terrain.Size().Sub(camSize))
-
 	objects = objects.gc()
+	return nil
+}
+
+// update is the main update function.
+func update(screen *ebiten.Image) error {
+	displayFrame++
+	if displayFrame%config.FramesPerUpdate == 0 {
+		if err := modelUpdate(); err != nil {
+			return err
+		}
+	}
 	rem := objects.cull()
 	rem.Sort()
 	return rem.draw(screen) // One draw call.

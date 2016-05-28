@@ -16,7 +16,7 @@ package awakengine
 
 import "github.com/DrJosh9000/vec"
 
-// Anim describes an animated sprite that might play.
+// Anim describes an animation sequence.
 type Anim struct {
 	Key       string
 	Offset    vec.I2
@@ -54,7 +54,7 @@ func (s SpriteObject) Src() (x0, y0, x1, y1 int) {
 	return x0, 0, x0 + a.FrameSize.X, a.FrameSize.Y
 }
 
-// StaticSprite just displays whatever frame number it is given.
+// StaticSprite just displays whatever frame number it is given, forever.
 type StaticSprite struct {
 	A *Anim
 	F int
