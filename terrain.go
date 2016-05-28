@@ -51,18 +51,25 @@ func ImageAsMap(imgkey string) ([]uint8, vec.I2, error) {
 // loadTerrain loads from a paletted image file.
 func loadTerrain(level *Level) (*Terrain, error) {
 	bs := vec.I2{level.TileSize, level.TileSize + level.BlockHeight}
-	terrain := &Terrain{
-		Level:        level,
-		blockSize:    bs,
-		blocksetSize: sizes[level.BlocksetKey].EDiv(bs),
-		tilesetSize:  sizes[level.TilesetKey].Div(level.TileSize),
+	t := &Terrain{
+		Level:     level,
+		blockSize: bs,
 	}
-	return terrain, nil
+	if level.BlocksetKey != "" {
+		t.blocksetSize = sizes[level.BlocksetKey].EDiv(bs)
+	}
+	if level.TilesetKey != "" {
+		t.tilesetSize = sizes[level.TilesetKey].Div(level.TileSize)
+	}
+	return t, nil
 }
 
 func (t *Terrain) parts() drawList {
-	l := make(drawList, 0, 2*len(t.TileMap))
+	l := make(drawList, 0, len(t.TileMap)+len(t.BlockMap))
 	for i := range t.TileMap {
+		if t.TileMap[i] == 0 {
+			continue
+		}
 		l = append(l, &tileObject{
 			Terrain: t,
 			i:       i,
@@ -70,6 +77,9 @@ func (t *Terrain) parts() drawList {
 		})
 	}
 	for i := range t.BlockMap {
+		if t.BlockMap[i] == 0 {
+			continue
+		}
 		d := vec.Div(i, t.MapSize.X).Mul(t.TileSize)
 		l = append(l, &blockObject{
 			Terrain: t,
@@ -164,6 +174,16 @@ func (t *Terrain) Block(x, y int) TileInfo {
 	return t.BlockInfos[n]
 }
 
+func (t *Terrain) Blocking(i, j int) bool {
+	if t.TileMap != nil && t.Tile(i, j).Blocking {
+		return true
+	}
+	if t.BlockMap != nil && t.Block(i, j).Blocking {
+		return true
+	}
+	return false
+}
+
 // ObstaclesAndPaths constructs two graphs, the first describing terrain
 // obsctacles, the second describing a network of valid paths around
 // the obstacles. Obstacles will be fattened according to the footprint
@@ -184,8 +204,8 @@ func (t *Terrain) ObstaclesAndPaths(fatUL, fatDR vec.I2) (obstacles, paths *vec.
 		u := vec.I2{}
 		for i := 0; i < t.MapSize.X; i++ {
 			ut := vec.I2{i, j}.Mul(t.TileSize)
-			cup := t.Tile(i, j-1).Blocking || t.Block(i, j-1).Blocking
-			cdown := t.Tile(i, j).Blocking || t.Block(i, j).Blocking
+			cup := t.Blocking(i, j-1)
+			cdown := t.Blocking(i, j)
 			if up != cup || down != cdown {
 				if up && !down {
 					if cdown {
@@ -239,8 +259,8 @@ func (t *Terrain) ObstaclesAndPaths(fatUL, fatDR vec.I2) (obstacles, paths *vec.
 		u := vec.I2{}
 		for j := 0; j < t.MapSize.Y; j++ {
 			ut := vec.I2{i, j}.Mul(t.TileSize)
-			cleft := t.Tile(i-1, j).Blocking || t.Block(i-1, j).Blocking
-			cright := t.Tile(i, j).Blocking || t.Block(i, j).Blocking
+			cleft := t.Blocking(i-1, j)
+			cright := t.Blocking(i, j)
 			if left != cleft || right != cright {
 				if left && !right {
 					if cright {
@@ -302,7 +322,8 @@ func (t *Terrain) ObstaclesAndPaths(fatUL, fatDR vec.I2) (obstacles, paths *vec.
 		pVerts[vu.Add(ur)] = true
 	}
 
-	if Debug {
+	if config.Debug {
+		log.Printf("generated %d vertices", len(pVerts))
 		log.Printf("generated %d obstacle edges", o.NumEdges())
 	}
 
@@ -325,7 +346,7 @@ func (t *Terrain) ObstaclesAndPaths(fatUL, fatDR vec.I2) (obstacles, paths *vec.
 			p.AddEdge(u, v)
 		}
 	}
-	if Debug {
+	if config.Debug {
 		log.Printf("generated %d paths edges", p.NumEdges())
 	}
 	return o, p

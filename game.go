@@ -18,21 +18,27 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"sort"
 
 	"github.com/DrJosh9000/vec"
 	"github.com/hajimehoshi/ebiten"
 	"github.com/hajimehoshi/ebiten/ebitenutil"
 )
 
+const levelGeomDumpFmt = `package game
+import "github.com/DrJosh9000/vec"
+var (\n
+	precomputedObstacles = %#v
+	precomputedPaths = %#v
+)`
+
 var (
-	// Debug controls display of debug graphics.
-	Debug bool
+	config *Config
 
 	game      Game
 	gameFrame int
 
-	mouseDown bool
+	mouseDown     bool
+	lastCursorPos vec.I2
 
 	// One frame of animation for every (animPeriod) frames rendered.
 	// So animation FPS = 60 / animPeriod.
@@ -53,6 +59,13 @@ var (
 	sprites []Sprite
 	objects drawList
 )
+
+type Config struct {
+	Debug           bool
+	LevelGeomDump   string
+	RecordingFile   string
+	RecordingFrames int
+}
 
 // Unit can be told to update and provide information for drawing.
 // Examples of units include the player character, NPCs, etc. Or it
@@ -82,6 +95,9 @@ type Level struct {
 	TileInfos, BlockInfos   []TileInfo
 	TilesetKey, BlocksetKey string
 	TileSize, BlockHeight   int
+
+	// Obstacles and Paths are optional but speed up game start time.
+	Obstacles, Paths *vec.Graph
 }
 
 // Game abstracts the non-engine parts of the game: the story, art, level design, etc.
@@ -114,9 +130,8 @@ type Game interface {
 }
 
 // load prepares assets for use by the game.
-func load(g Game, debug bool) error {
+func load(g Game) error {
 	game = g
-	Debug = debug
 	camSize, pixelSize, animPeriod, title = game.Viewport()
 
 	if err := loadAllImages(); err != nil {
@@ -139,31 +154,45 @@ func load(g Game, debug bool) error {
 	terrain = t
 	objects = append(objects, terrain.parts()...)
 
-	//objects = append(objects, dialogueBubble)
-
-	// TODO: compute unfattened static obstacles and fully dynamic paths to support
-	// multiple units.
-	// Invert the footprint to fatten the obstacles with.
-	ul, dr := player.Footprint()
-	ul = ul.Mul(-1)
-	dr = dr.Mul(-1)
-	obstacles, paths = t.ObstaclesAndPaths(dr, ul)
+	obstacles, paths = l.Obstacles, l.Paths
+	if obstacles == nil || paths == nil {
+		// TODO: compute unfattened static obstacles and fully dynamic paths to support
+		// multiple units.
+		// Invert the footprint to fatten the obstacles with.
+		ul, dr := player.Footprint()
+		ul = ul.Mul(-1)
+		dr = dr.Mul(-1)
+		obstacles, paths = t.ObstaclesAndPaths(dr, ul)
+		if config.LevelGeomDump != "" {
+			f, err := os.Create(config.LevelGeomDump)
+			if err != nil {
+				return err
+			}
+			defer f.Close()
+			_, err = fmt.Fprintf(f, levelGeomDumpFmt, obstacles, paths)
+			err = f.Close()
+			if err != nil {
+				return err
+			}
+		}
+	}
 	return nil
 }
 
 // Run runs the game (ebiten.Run) in addition to setting up any necessary GIF recording.
-func Run(g Game, debug bool, rf string, frameCount int) error {
-	if err := load(g, debug); err != nil {
+func Run(g Game, cfg *Config) error {
+	config = cfg
+	if err := load(g); err != nil {
 		return err
 	}
 	up := update
-	if rf != "" {
-		f, err := os.Create(rf)
+	if cfg.RecordingFile != "" {
+		f, err := os.Create(cfg.RecordingFile)
 		if err != nil {
 			return fmt.Errorf("creating recording file: %v", err)
 		}
 		defer f.Close()
-		up = ebitenutil.RecordScreenAsGIF(up, f, frameCount)
+		up = ebitenutil.RecordScreenAsGIF(up, f, cfg.RecordingFrames)
 	}
 	return ebiten.Run(up, camSize.X, camSize.Y, pixelSize, title)
 }
@@ -208,15 +237,22 @@ func drawDebug(screen *ebiten.Image) error {
 func update(screen *ebiten.Image) error {
 	// Read inputs
 	md := ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft)
-	e := Event{Pos: vec.NewI2(ebiten.CursorPosition()).Add(camPos)}
+	if md {
+		lastCursorPos = vec.NewI2(ebiten.CursorPosition())
+	}
+	tt := ebiten.Touches()
+	if len(tt) > 0 {
+		md = true
+		lastCursorPos = vec.NewI2(tt[0].Position())
+	}
+	e := Event{Pos: lastCursorPos.Add(camPos)}
 	switch {
 	case md && !mouseDown:
-		mouseDown = true
 		e.Type = EventMouseDown
 	case !md && mouseDown:
-		mouseDown = false
 		e.Type = EventMouseUp
 	}
+	mouseDown = md
 
 	// Do we proceed with the game, or with the dialogue display?
 	if dialogue == nil {
@@ -229,7 +265,7 @@ func update(screen *ebiten.Image) error {
 						continue
 					}
 				}
-				if Debug {
+				if config.Debug {
 					log.Printf("firing %s with %d dialogues", k, len(trig.Dialogues))
 				}
 				if trig.Fire != nil {
@@ -282,7 +318,7 @@ func update(screen *ebiten.Image) error {
 
 	objects = objects.gc()
 	rem := objects.cull()
-	sort.Sort(rem)
+	rem.Sort()
 	return rem.draw(screen) // One draw call.
 }
 
@@ -292,7 +328,7 @@ func Navigate(from, to vec.I2) []vec.I2 {
 	if err != nil {
 		// Go near to the cursor position.
 		e, q := obstacles.NearestPoint(to)
-		if Debug {
+		if config.Debug {
 			log.Printf("nearest edge: %v point: %v", e, q)
 		}
 		q = q.Add(e.V.Sub(e.U).Normal().Sgn()) // Adjust it slightly...
@@ -307,7 +343,7 @@ func Navigate(from, to vec.I2) []vec.I2 {
 		}
 		path = path2
 	}
-	if Debug {
+	if config.Debug {
 		log.Printf("path: %v", path)
 	}
 	return path
