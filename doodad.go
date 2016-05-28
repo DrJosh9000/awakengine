@@ -33,6 +33,7 @@ type Doodad struct {
 func (b *BaseDoodad) Anim() *Anim { return b.A }
 func (b *BaseDoodad) Frame() int  { return b.F }
 func (d *Doodad) Pos() vec.I2     { return d.P }
+func (d *Doodad) Update(int)      {}
 
 func (d *Doodad) InWorld() bool { return true }
 func (d *Doodad) Retire() bool  { return false }
