@@ -14,6 +14,17 @@ type Semiobject interface {
 	Z() int
 }
 
+// StaticSemiobject returns semiobject things as a
+type StaticSemiobject struct {
+	IW, R, V bool
+	Zed      int
+}
+
+func (s *StaticSemiobject) InWorld() bool { return s.IW }
+func (s *StaticSemiobject) Retire() bool  { return s.R }
+func (s *StaticSemiobject) Visible() bool { return s.V }
+func (s *StaticSemiobject) Z() int        { return s.Zed }
+
 // Object is everything, everything is an object.
 type Object interface {
 	Semiobject
