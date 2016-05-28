@@ -69,9 +69,10 @@ var (
 	dialogueStack []DialogueLine
 	dialogue      *DialogueDisplay
 
-	player  Unit
-	sprites []Sprite
-	objects drawList
+	player           Unit
+	sprites          []Sprite
+	objects          drawList
+	displayedObjects drawList
 )
 
 type Config struct {
@@ -331,6 +332,8 @@ func modelUpdate() error {
 	// Update camera to focus on player.
 	camPos = pp.Sub(camSize.Div(2)).ClampLo(vec.I2{}).ClampHi(terrain.Size().Sub(camSize))
 	objects = objects.gc()
+	displayedObjects = objects.cull()
+	displayedObjects.Sort()
 	return nil
 }
 
@@ -342,9 +345,7 @@ func update(screen *ebiten.Image) error {
 			return err
 		}
 	}
-	rem := objects.cull()
-	rem.Sort()
-	return rem.draw(screen) // One draw call.
+	return displayedObjects.draw(screen) // One draw call.
 }
 
 // Navigate attempts to construct a path within the terrain.
