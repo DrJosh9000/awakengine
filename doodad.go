@@ -30,23 +30,11 @@ type Doodad struct {
 	*BaseDoodad
 }
 
-// Anim implements Sprite.
 func (b *BaseDoodad) Anim() *Anim { return b.A }
+func (b *BaseDoodad) Frame() int  { return b.F }
+func (d *Doodad) Pos() vec.I2     { return d.P }
 
-// Frame implements Sprite.
-func (b *BaseDoodad) Frame() int { return b.F }
-
-// Pos implements Sprite.
-func (d *Doodad) Pos() vec.I2 { return d.P }
-
-// DoodadsByYPos orders Sprites by Y position (least to greatest).
-type DoodadsByYPos []*Doodad
-
-// Len implements sort.Interface.
-func (b DoodadsByYPos) Len() int { return len(b) }
-
-// Less implements sort.Interface.
-func (b DoodadsByYPos) Less(i, j int) bool { return b[i].P.Y < b[j].P.Y }
-
-// Swap implements sort.Interface.
-func (b DoodadsByYPos) Swap(i, j int) { b[i], b[j] = b[j], b[i] }
+func (d *Doodad) InWorld() bool { return true }
+func (d *Doodad) Retire() bool  { return false }
+func (d *Doodad) Visible() bool { return true }
+func (d *Doodad) Z() int        { return d.P.Y }

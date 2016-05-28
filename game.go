@@ -82,17 +82,14 @@ type Unit interface {
 	Path() []vec.I2
 
 	Pos() vec.I2
-
-	// Update asks the unit to update its own state.
-	//Update(t int)
 }
 
 // Level describes things needed for a base terrain/level.
 type Level struct {
-	Doodads                 []*Doodad
+	Doodads                 []*Doodad // sparse terrain objects
 	MapSize                 vec.I2
 	TileMap, BlockMap       []uint8
-	TileInfos, BlockInfos   []TileInfo
+	TileInfos, BlockInfos   []TileInfo // dense terrain objects
 	TilesetKey, BlocksetKey string
 	TileSize, BlockHeight   int
 
