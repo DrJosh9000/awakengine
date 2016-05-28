@@ -18,13 +18,11 @@ import "github.com/DrJosh9000/vec"
 
 // Anim describes an animation sequence.
 type Anim struct {
-	Key       string
-	Offset    vec.I2
-	Frames    int
-	FrameSize vec.I2
+	*Sheet
+	Offset        vec.I2
+	FrameDuration []int // model frames to spend in each animation frame
+	LoopTo        int   // return to this frame number when complete
 }
-
-func (a *Anim) ImageKey() string { return a.Key }
 
 type Sprite interface {
 	Anim() *Anim
@@ -47,12 +45,7 @@ func (s SpriteObject) Dst() (x0, y0, x1, y1 int) {
 	return b.X, b.Y, c.X, c.Y
 }
 
-func (s SpriteObject) Src() (x0, y0, x1, y1 int) {
-	a, f := s.Anim(), s.Frame()
-	f %= a.Frames
-	x0 = f * a.FrameSize.X
-	return x0, 0, x0 + a.FrameSize.X, a.FrameSize.Y
-}
+func (s SpriteObject) Src() (x0, y0, x1, y1 int) { return s.Anim().Sheet.Src(s.Frame()) }
 
 // StaticSprite just displays whatever frame number it is given, forever.
 type StaticSprite struct {

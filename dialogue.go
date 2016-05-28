@@ -20,8 +20,8 @@ const dialogueZ = 100000
 
 // DialogueLine is information for displaying a singe line of dialogue in a display.
 type DialogueLine struct {
-	Avatars *Anim
-	Frame   int
+	Avatars *Sheet
+	Index   int
 	Text    string
 }
 
@@ -32,21 +32,21 @@ type DialogueDisplay struct {
 	text     *Text
 	complete bool
 	retire   bool
-	avatar   *StaticSprite
+	avatar   *SheetFrame
 	visible  bool
 }
 
 // DialogueFromLine creates a new DialogueDisplay.
 func DialogueFromLine(line DialogueLine) (*DialogueDisplay, error) {
 	textPos := vec.I2{20, camSize.Y - 80 + 5}
-	var avatar *StaticSprite
-	if line.Avatars != nil && line.Frame >= 0 {
+	var avatar *SheetFrame
+	if line.Avatars != nil && line.Index >= 0 {
 		// Provide space for the avatar.
 		textPos.X += line.Avatars.FrameSize.X + 5
-		avatar = &StaticSprite{
-			A: line.Avatars,
-			F: line.Frame,
-			P: vec.I2{15, camSize.Y - 80 + 2},
+		avatar = &SheetFrame{
+			Sheet: line.Avatars,
+			F:     line.Index,
+			P:     vec.I2{15, camSize.Y - 80 + 2},
 		}
 	}
 	d := &DialogueDisplay{
@@ -77,7 +77,10 @@ func (d *DialogueDisplay) Z() int        { return dialogueZ }
 func (d *DialogueDisplay) parts() drawList {
 	l := d.bubble.parts()
 	if d.avatar != nil {
-		l = append(l, SpriteObject{Sprite: d.avatar, Semiobject: d})
+		l = append(l, &struct {
+			*SheetFrame
+			*DialogueDisplay
+		}{d.avatar, d})
 	}
 	l = append(l, d.text.parts()...)
 	return l

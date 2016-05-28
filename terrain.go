@@ -309,7 +309,7 @@ func (t *Terrain) ObstaclesAndPaths(fatUL, fatDR vec.I2) (obstacles, paths *vec.
 
 	// Generate doodad edges
 	for _, d := range t.Doodads {
-		u := d.Pos().Sub(d.Anim().Offset)
+		u := d.P.Sub(d.Offset)
 		u, v := u.Add(d.UL).Add(fatUL), u.Add(d.DR).Add(fatDR)
 		uv, vu := vec.I2{u.X, v.Y}, vec.I2{v.X, u.Y}
 		o.AddEdge(u, uv)

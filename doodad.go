@@ -19,10 +19,13 @@ import "github.com/DrJosh9000/vec"
 // BaseDoodad models a static object rendered at the player layer, but computed as
 // obstacles (like terrain).
 type BaseDoodad struct {
-	UL, DR vec.I2 // base obstacle box (pos relative)
-	A      *Anim
-	F      int
+	*Sheet
+	Frame  int
+	Offset vec.I2
+	UL, DR vec.I2 // base obstacle box (frame relative)
 }
+
+func (b *BaseDoodad) Src() (x0, y0, x1, y1 int) { return b.Sheet.Src(b.Frame) }
 
 // Doodad is an instance of a BaseDoodad in a specific location.
 type Doodad struct {
@@ -30,11 +33,9 @@ type Doodad struct {
 	*BaseDoodad
 }
 
-func (b *BaseDoodad) Anim() *Anim { return b.A }
-func (b *BaseDoodad) Frame() int  { return b.F }
-func (d *Doodad) Pos() vec.I2     { return d.P }
-func (d *Doodad) Update(int)      {}
+func (d *Doodad) Dst() (x0, y0, x1, y1 int) { return d.Sheet.Dst(d.P.Sub(d.Offset)) }
 
+func (d *Doodad) Update(int)    {}
 func (d *Doodad) InWorld() bool { return true }
 func (d *Doodad) Retire() bool  { return false }
 func (d *Doodad) Visible() bool { return true }

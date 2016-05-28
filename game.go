@@ -161,7 +161,7 @@ func load(g Game) error {
 	}
 
 	for _, d := range l.Doodads {
-		objects = append(objects, &SpriteObject{d, d})
+		objects = append(objects, d)
 	}
 
 	t, err := loadTerrain(l)

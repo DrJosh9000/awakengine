@@ -6,6 +6,12 @@ import (
 	"github.com/hajimehoshi/ebiten"
 )
 
+type Drawable interface {
+	ImageKey() string
+	Dst() (x0, y0, x1, y1 int)
+	Src() (x0, y0, x1, y1 int) // relative to the image referred to by ImageKey()
+}
+
 // Semiobject is some import stuff for logical grouping.
 type Semiobject interface {
 	InWorld() bool // true if the object exists in world-coordinates, false if screen coordinates
@@ -14,7 +20,7 @@ type Semiobject interface {
 	Z() int
 }
 
-// StaticSemiobject returns semiobject things as a
+// StaticSemiobject returns semiobject things as whatever you put in the struct.
 type StaticSemiobject struct {
 	IW, R, V bool
 	Zed      int
@@ -27,10 +33,8 @@ func (s *StaticSemiobject) Z() int        { return s.Zed }
 
 // Object is everything, everything is an object.
 type Object interface {
+	Drawable
 	Semiobject
-	ImageKey() string
-	Dst() (x0, y0, x1, y1 int)
-	Src() (x0, y0, x1, y1 int) // relative to the image referred to by ImageKey()
 }
 
 type drawList []Object
