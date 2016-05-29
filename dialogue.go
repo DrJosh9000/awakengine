@@ -23,11 +23,13 @@ type DialogueLine struct {
 	Avatars *Sheet
 	Index   int
 	Text    string
+	Buttons []string
 }
 
 // Dialogue is all the things needed for displaying blocking dialogue text.
 type DialogueDisplay struct {
 	bubble   *Bubble
+	buttons  []*Button
 	frame    int // frame number for this dialogue.
 	text     *Text
 	complete bool
@@ -37,8 +39,10 @@ type DialogueDisplay struct {
 }
 
 // DialogueFromLine creates a new DialogueDisplay.
-func DialogueFromLine(line DialogueLine) (*DialogueDisplay, error) {
-	textPos := vec.I2{20, camSize.Y - 80 + 5}
+func DialogueFromLine(line *DialogueLine) (*DialogueDisplay, error) {
+	basePos := vec.I2{10, camSize.Y - 80}
+	baseSize := vec.I2{camSize.X - 20, 70}
+	textPos := basePos.Add(vec.I2{5, 5})
 	var avatar *SheetFrame
 	if line.Avatars != nil && line.Index >= 0 {
 		// Provide space for the avatar.
@@ -53,18 +57,25 @@ func DialogueFromLine(line DialogueLine) (*DialogueDisplay, error) {
 		frame:   0,
 		avatar:  avatar,
 		visible: true,
+		text: &Text{
+			Text: line.Text,
+			Pos:  textPos,
+			Size: vec.I2{camSize.X - textPos.X - 20, 0},
+			Font: game.Font(),
+		},
+		bubble: &Bubble{
+			ul:     basePos,
+			dr:     basePos.Add(baseSize),
+			imgkey: game.BubbleKey(),
+		},
 	}
-	t, err := NewText(line.Text, camSize.X-textPos.X-20, textPos, game.Font(), d, 0)
-	if err != nil {
-		return nil, err
-	}
-	d.text = t
-	d.bubble = &Bubble{
-		pos:        vec.I2{10, camSize.Y - 80},
-		sz:         vec.I2{camSize.X - 20, 70},
-		imgkey:     game.BubbleKey(),
-		deltaZ:     -1,
-		Semiobject: d,
+	d.bubble.Parent = Parent{d}
+	d.text.Parent = Parent{d.bubble}
+	d.text.Layout(false) // Rolls out the text for each Advance.
+	p := vec.I2{textPos.X + 5, textPos.Y + d.text.Size.Y + 5}
+	for _, t := range line.Buttons {
+		d.buttons = append(d.buttons, NewButton(t, p, p.Add(vec.I2{50, 18}), Parent{d.bubble}))
+		p.X += 55
 	}
 	return d, nil
 }
@@ -76,13 +87,16 @@ func (d *DialogueDisplay) Z() int        { return dialogueZ }
 
 func (d *DialogueDisplay) parts() drawList {
 	l := d.bubble.parts()
+	l = append(l, d.text.parts()...)
 	if d.avatar != nil {
 		l = append(l, &struct {
 			*SheetFrame
-			*DialogueDisplay
-		}{d.avatar, d})
+			Parent
+		}{d.avatar, Parent{d.bubble}})
 	}
-	l = append(l, d.text.parts()...)
+	for _, b := range d.buttons {
+		l = append(l, b.parts()...)
+	}
 	return l
 }
 

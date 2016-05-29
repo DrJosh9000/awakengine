@@ -32,11 +32,10 @@ type CharInfo struct {
 type Text struct {
 	Pos, Size vec.I2
 	Font
-	Semiobject
-	deltaZ int
-	txt    string
-	chars  []oneChar
-	next   int
+	Parent
+	Text  string
+	chars []oneChar
+	next  int
 }
 
 func (s *Text) parts() drawList {
@@ -47,7 +46,7 @@ func (s *Text) parts() drawList {
 	return l
 }
 
-func (s *Text) Z() int { return s.Semiobject.Z() + s.deltaZ }
+func (s *Text) Z() int { return s.Semiobject.Z() + 1 }
 
 type oneChar struct {
 	*Text
@@ -82,50 +81,44 @@ func (s *Text) Advance() error {
 	return nil
 }
 
-// NewText computes a new Text. You *must* specify width.
-func NewText(txt string, width int, pos vec.I2, font Font, parent Semiobject, deltaZ int) (*Text, error) {
-	text := &Text{
-		Pos:        pos,
-		Font:       font,
-		Semiobject: parent,
-		deltaZ:     deltaZ,
-		txt:        txt,
-		next:       0,
-	}
-	text.layout(width)
-	return text, nil
-}
-
-func (s *Text) layout(width int) {
-	chars := make([]oneChar, 0, len(s.txt))
+// Layout causes the text to lay out all the characters, and update
+// the size to exactly contain the text. Text will be wrapped to the
+// existing Size.X as a width.
+func (s *Text) Layout(visible bool) {
+	width := s.Size.X
+	maxW := 0
+	chars := make([]oneChar, 0, len(s.Text))
 	cm := s.Metrics()
 	x, y := 0, 0
-	wordStartC, wordStartI := 0, 0 // chars index, txt index
+	wordStartC, wordStartI := 0, 0 // chars index, Text index
 	wrapIt := func(end int) {
 		if x < width {
 			return
+		}
+		if x > maxW {
+			maxW = x
 		}
 		x = 0
 		y += s.LineHeight()
 		// Fix previous word.
 		for i, j := wordStartC, wordStartI; j < end; i, j = i+1, j+1 {
-			c := s.txt[j]
+			c := s.Text[j]
 			ci := cm[c]
 			chars[i].pos = vec.I2{x, y}
 			x += ci.XAdvance
 		}
 	}
-	for i := range s.txt {
-		if s.txt[i] == '\n' {
+	for i := range s.Text {
+		if s.Text[i] == '\n' {
 			x = 0
 			y += s.LineHeight()
 			wordStartC = len(chars)
 			wordStartI = i + 1
 			continue
 		}
-		c := s.txt[i]
+		c := s.Text[i]
 		ci := cm[c]
-		if s.txt[i] == ' ' {
+		if s.Text[i] == ' ' {
 			wrapIt(i)
 			wordStartC = len(chars)
 			wordStartI = i + 1
@@ -133,13 +126,17 @@ func (s *Text) layout(width int) {
 			continue
 		}
 		chars = append(chars, oneChar{
-			Text: s,
-			pos:  vec.I2{x, y},
-			c:    c,
+			Text:    s,
+			pos:     vec.I2{x, y},
+			c:       c,
+			visible: visible,
 		})
 		x += ci.XAdvance
 	}
-	wrapIt(len(s.txt))
+	wrapIt(len(s.Text))
+	if x > maxW {
+		maxW = x
+	}
 	s.chars = chars
-	s.Size = vec.I2{width, y + s.LineHeight()}
+	s.Size = vec.I2{maxW, y + s.LineHeight()}
 }

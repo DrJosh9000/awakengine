@@ -20,14 +20,12 @@ const bubblePartSize = 5
 
 // Bubble renders a bubble at any size larger than 15x15.
 type Bubble struct {
-	pos, sz    vec.I2
-	imgkey     string
-	deltaZ     int
-	Semiobject // parent
+	ul, dr vec.I2
+	imgkey string
+	Parent
 }
 
 func (b *Bubble) ImageKey() string { return b.imgkey }
-func (b *Bubble) Z() int           { return b.Semiobject.Z() + b.deltaZ }
 
 func (b *Bubble) parts() drawList {
 	l := make(drawList, 9)
@@ -45,7 +43,8 @@ type bubblePart struct {
 // Src implements ImageParts.
 func (b bubblePart) Src() (x0, y0, x1, y1 int) {
 	x0, y0 = vec.Div(b.i, 3).Mul(bubblePartSize).C()
-	return x0, y0, x0 + bubblePartSize, y0 + bubblePartSize
+	x1, y1 = x0+bubblePartSize, y0+bubblePartSize
+	return
 }
 
 // Dst implements ImageParts.
@@ -53,23 +52,25 @@ func (b bubblePart) Dst() (x0, y0, x1, y1 int) {
 	j, k := vec.Div(b.i, 3).C()
 	switch j {
 	case 0:
-		x1 = bubblePartSize
+		x0 = b.ul.X
+		x1 = b.ul.X + bubblePartSize
 	case 1:
-		x0 = bubblePartSize
-		x1 = b.sz.X - bubblePartSize
+		x0 = b.ul.X + bubblePartSize
+		x1 = b.dr.X - bubblePartSize
 	case 2:
-		x0 = b.sz.X - bubblePartSize
-		x1 = b.sz.X
+		x0 = b.dr.X - bubblePartSize
+		x1 = b.dr.X
 	}
 	switch k {
 	case 0:
-		y1 = bubblePartSize
+		y0 = b.ul.Y
+		y1 = b.ul.Y + bubblePartSize
 	case 1:
-		y0 = bubblePartSize
-		y1 = b.sz.Y - bubblePartSize
+		y0 = b.ul.Y + bubblePartSize
+		y1 = b.dr.Y - bubblePartSize
 	case 2:
-		y0 = b.sz.Y - bubblePartSize
-		y1 = b.sz.Y
+		y0 = b.dr.Y - bubblePartSize
+		y1 = b.dr.Y
 	}
-	return x0 + b.pos.X, y0 + b.pos.Y, x1 + b.pos.X, y1 + b.pos.Y
+	return
 }

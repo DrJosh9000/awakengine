@@ -271,6 +271,8 @@ func modelUpdate() error {
 	}
 	mouseDown = md
 
+	// TODO: What did they just click on?
+
 	// Do we proceed with the game, or with the dialogue display?
 	if dialogue == nil {
 		// Got any triggers?
@@ -292,7 +294,7 @@ func modelUpdate() error {
 				dialogue = nil
 				player.GoIdle()
 				if len(dialogueStack) > 0 {
-					d, err := DialogueFromLine(dialogueStack[0])
+					d, err := DialogueFromLine(&dialogueStack[0])
 					if err != nil {
 						return err
 					}
@@ -319,7 +321,7 @@ func modelUpdate() error {
 		dialogueStack = dialogueStack[1:]
 		dialogue = nil
 		if len(dialogueStack) > 0 {
-			d, err := DialogueFromLine(dialogueStack[0])
+			d, err := DialogueFromLine(&dialogueStack[0])
 			if err != nil {
 				return err
 			}
