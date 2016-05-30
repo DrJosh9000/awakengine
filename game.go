@@ -83,6 +83,11 @@ type Config struct {
 	RecordingFrames int
 }
 
+// Handler handles events.
+type Handler interface {
+	Handle(e Event)
+}
+
 // Unit can be told to update and provide information for drawing.
 // Examples of units include the player character, NPCs, etc. Or it
 // could be a unit in an RTS.
@@ -115,14 +120,14 @@ type Level struct {
 
 // Game abstracts the non-engine parts of the game: the story, art, level design, etc.
 type Game interface {
-	// BubbleKey returns the key for the bubble image.
-	BubbleKey() string
+	// BubbleKey returns the key for the bubble image, and inverse.
+	BubbleKey() (string, string)
 
 	// Font is the general/default typeface to use.
 	Font() Font
 
 	// Handle handles events.
-	Handle(t int, e Event)
+	Handle(e Event)
 
 	// Level provides the base level.
 	Level() (*Level, error)
@@ -262,7 +267,11 @@ func modelUpdate() error {
 		md = true
 		lastCursorPos = vec.NewI2(tt[0].Position())
 	}
-	e := Event{Pos: lastCursorPos.Add(camPos)}
+	e := Event{
+		Time:      modelFrame,
+		Pos:       lastCursorPos.Add(camPos),
+		MouseDown: md,
+	}
 	switch {
 	case md && !mouseDown:
 		e.Type = EventMouseDown
@@ -308,14 +317,14 @@ func modelUpdate() error {
 		if dialogue == nil {
 			modelFrame++
 
-			game.Handle(modelFrame, e)
+			game.Handle(e)
 			for _, o := range objects {
 				if u, ok := o.(Sprite); ok {
 					u.Update(modelFrame)
 				}
 			}
 		}
-	} else if dialogue.Update(e) {
+	} else if dialogue.Handle(e) {
 		// Play
 		dialogue.retire = true
 		dialogueStack = dialogueStack[1:]

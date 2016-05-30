@@ -19,7 +19,7 @@ import "github.com/DrJosh9000/vec"
 type CharMetrics map[byte]CharInfo
 
 type Font interface {
-	ImageKey() string
+	ImageKey(invert bool) string
 	Metrics() CharMetrics
 	LineHeight() int
 	YOffset() int
@@ -33,10 +33,13 @@ type Text struct {
 	Pos, Size vec.I2
 	Font
 	Parent
-	Text  string
-	chars []oneChar
-	next  int
+	Text   string
+	Invert bool
+	chars  []oneChar
+	next   int
 }
+
+func (s *Text) ImageKey() string { return s.Font.ImageKey(s.Invert) }
 
 func (s *Text) parts() drawList {
 	l := make(drawList, len(s.chars))

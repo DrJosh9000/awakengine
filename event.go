@@ -25,6 +25,8 @@ const (
 )
 
 type Event struct {
-	Type EventType
-	Pos  vec.I2
+	Time      int
+	Type      EventType
+	Pos       vec.I2
+	MouseDown bool
 }

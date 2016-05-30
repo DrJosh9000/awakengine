@@ -18,12 +18,17 @@ import "github.com/DrJosh9000/vec"
 
 const dialogueZ = 100000
 
+type ButtonSpec struct {
+	Label  string
+	Action func()
+}
+
 // DialogueLine is information for displaying a singe line of dialogue in a display.
 type DialogueLine struct {
 	Avatars *Sheet
 	Index   int
 	Text    string
-	Buttons []string
+	Buttons []ButtonSpec
 }
 
 // Dialogue is all the things needed for displaying blocking dialogue text.
@@ -53,6 +58,7 @@ func DialogueFromLine(line *DialogueLine) (*DialogueDisplay, error) {
 			P:     vec.I2{15, camSize.Y - 80 + 2},
 		}
 	}
+	bk, _ := game.BubbleKey()
 	d := &DialogueDisplay{
 		frame:   0,
 		avatar:  avatar,
@@ -66,16 +72,16 @@ func DialogueFromLine(line *DialogueLine) (*DialogueDisplay, error) {
 		bubble: &Bubble{
 			ul:     basePos,
 			dr:     basePos.Add(baseSize),
-			imgkey: game.BubbleKey(),
+			imgkey: bk,
 		},
 	}
 	d.bubble.Parent = Parent{d}
 	d.text.Parent = Parent{d.bubble}
 	d.text.Layout(false) // Rolls out the text for each Advance.
-	p := vec.I2{textPos.X + 5, textPos.Y + d.text.Size.Y + 5}
-	for _, t := range line.Buttons {
-		d.buttons = append(d.buttons, NewButton(t, p, p.Add(vec.I2{50, 18}), Parent{d.bubble}))
-		p.X += 55
+	p := vec.I2{textPos.X + 15, basePos.Y + baseSize.Y - 30}
+	for _, s := range line.Buttons {
+		d.buttons = append(d.buttons, NewButton(s.Label, s.Action, p, p.Add(vec.I2{50, 18}), Parent{d.bubble}))
+		p.X += 65
 	}
 	return d, nil
 }
@@ -101,11 +107,15 @@ func (d *DialogueDisplay) parts() drawList {
 }
 
 // Update updates things in the dialogue, based on user input or passage of time.
-func (d *DialogueDisplay) Update(event Event) (dismiss bool) {
+func (d *DialogueDisplay) Handle(event Event) (dismiss bool) {
+	for _, b := range d.buttons {
+		if b.Handle(event) {
+			return true
+		}
+	}
 	if event.Type == EventMouseUp {
-		if d.complete {
-			dismiss = true
-			return
+		if d.complete && len(d.buttons) == 0 {
+			return true
 		}
 		// Finish.
 		d.complete = true
