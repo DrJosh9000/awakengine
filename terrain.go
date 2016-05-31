@@ -91,8 +91,9 @@ func (t *Terrain) parts() drawList {
 	return l
 }
 
-func (t *Terrain) Retire() bool  { return false }
+func (t *Terrain) Fixed() bool   { return true }
 func (t *Terrain) InWorld() bool { return true }
+func (t *Terrain) Retire() bool  { return false }
 func (t *Terrain) Visible() bool { return true }
 
 type tileObject struct {

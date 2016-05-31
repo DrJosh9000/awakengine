@@ -36,6 +36,7 @@ type Doodad struct {
 func (d *Doodad) Dst() (x0, y0, x1, y1 int) { return d.Sheet.Dst(d.P.Sub(d.Offset)) }
 
 func (d *Doodad) Update(int)    {}
+func (d *Doodad) Fixed() bool   { return true }
 func (d *Doodad) InWorld() bool { return true }
 func (d *Doodad) Retire() bool  { return false }
 func (d *Doodad) Visible() bool { return true }

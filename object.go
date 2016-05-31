@@ -42,6 +42,7 @@ func (s *StaticDrawable) Src() (x0, y0, x1, y1 int) { return s.S.C() }
 
 // Semiobject is some import stuff for logical grouping.
 type Semiobject interface {
+	Fixed() bool   // true if the object never moves - X, Y, or Z (but can still be world-relative).
 	InWorld() bool // true if the object exists in world-coordinates, false if screen coordinates
 	Retire() bool  // true if the object will never draw again and can be removed from the draw list
 	Visible() bool
@@ -50,10 +51,11 @@ type Semiobject interface {
 
 // StaticSemiobject implements Semiobjects with struct fields.
 type StaticSemiobject struct {
-	IW, R, V bool
-	Zed      int
+	F, IW, R, V bool
+	Zed         int
 }
 
+func (s *StaticSemiobject) Fixed() bool   { return s.F }
 func (s *StaticSemiobject) InWorld() bool { return s.IW }
 func (s *StaticSemiobject) Retire() bool  { return s.R }
 func (s *StaticSemiobject) Visible() bool { return s.V }

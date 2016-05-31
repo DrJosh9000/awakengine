@@ -86,6 +86,7 @@ func DialogueFromLine(line *DialogueLine) (*DialogueDisplay, error) {
 	return d, nil
 }
 
+func (d *DialogueDisplay) Fixed() bool   { return true }
 func (d *DialogueDisplay) Retire() bool  { return d.retire }
 func (d *DialogueDisplay) InWorld() bool { return false }
 func (d *DialogueDisplay) Visible() bool { return d.visible }
