@@ -71,7 +71,8 @@ var (
 
 	player           Unit
 	sprites          []Sprite
-	objects          drawList
+	fixedObjects     drawList
+	looseObjects     drawList
 	displayedObjects drawList
 )
 
@@ -157,7 +158,6 @@ func load(g Game) error {
 	}
 
 	player = game.Player()
-	objects = drawList(game.Objects())
 	triggers = game.Triggers()
 
 	l, err := game.Level()
@@ -165,16 +165,11 @@ func load(g Game) error {
 		return fmt.Errorf("loading level: %v", err)
 	}
 
-	for _, d := range l.Doodads {
-		objects = append(objects, d)
-	}
-
 	t, err := loadTerrain(l)
 	if err != nil {
 		return fmt.Errorf("loading terrain: %v", err)
 	}
 	terrain = t
-	objects = append(objects, terrain.parts()...)
 
 	obstacles, paths = l.Obstacles, l.Paths
 	if obstacles == nil || paths == nil {
@@ -198,6 +193,14 @@ func load(g Game) error {
 			}
 		}
 	}
+
+	dd := make([]Object, 0, len(l.Doodads))
+	for _, d := range l.Doodads {
+		dd = append(dd, d)
+	}
+
+	fixedObjects, looseObjects = makeDrawLists(game.Objects(), terrain.parts(), dd)
+	fixedObjects.Sort()
 	return nil
 }
 
@@ -308,7 +311,8 @@ func modelUpdate() error {
 						return err
 					}
 					dialogue = d
-					objects = append(objects, dialogue.parts()...)
+					fixedObjects = append(fixedObjects, dialogue.parts()...)
+					fixedObjects.Sort()
 				}
 				trig.Fired = true
 				break
@@ -318,8 +322,8 @@ func modelUpdate() error {
 			modelFrame++
 
 			game.Handle(e)
-			for _, o := range objects {
-				if u, ok := o.(Sprite); ok {
+			for _, o := range looseObjects {
+				if u, ok := o.Object.(Sprite); ok {
 					u.Update(modelFrame)
 				}
 			}
@@ -335,16 +339,19 @@ func modelUpdate() error {
 				return err
 			}
 			dialogue = d
-			objects = append(objects, dialogue.parts()...)
+			fixedObjects = append(fixedObjects, dialogue.parts()...)
+			fixedObjects.Sort()
 		}
 	}
-	pp := player.Pos()
 
 	// Update camera to focus on player.
-	camPos = pp.Sub(camSize.Div(2)).ClampLo(vec.I2{}).ClampHi(terrain.Size().Sub(camSize))
-	objects = objects.gc()
-	displayedObjects = objects.cull()
-	displayedObjects.Sort()
+	camPos = player.Pos().Sub(camSize.Div(2)).ClampLo(vec.I2{}).ClampHi(terrain.Size().Sub(camSize))
+
+	fixedObjects = fixedObjects.gc()
+	looseObjects = looseObjects.gc()
+	dlo := looseObjects.cull()
+	dlo.Sort()
+	displayedObjects = merge(fixedObjects.cull(), dlo)
 	return nil
 }
 

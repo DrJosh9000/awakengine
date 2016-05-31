@@ -30,7 +30,7 @@ func (b *Bubble) ImageKey() string { return b.imgkey }
 func (b *Bubble) parts() drawList {
 	l := make(drawList, 9)
 	for i := 0; i < 9; i++ {
-		l[i] = bubblePart{b, i}
+		l[i] = drawPosition{bubblePart{b, i}}
 	}
 	return l
 }

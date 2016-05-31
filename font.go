@@ -44,7 +44,7 @@ func (s *Text) ImageKey() string { return s.Font.ImageKey(s.Invert) }
 func (s *Text) parts() drawList {
 	l := make(drawList, len(s.chars))
 	for i := range s.chars {
-		l[i] = &s.chars[i]
+		l[i] = drawPosition{&s.chars[i]}
 	}
 	return l
 }

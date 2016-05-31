@@ -64,8 +64,8 @@ func loadTerrain(level *Level) (*Terrain, error) {
 	return t, nil
 }
 
-func (t *Terrain) parts() drawList {
-	l := make(drawList, 0, len(t.TileMap)+len(t.BlockMap))
+func (t *Terrain) parts() []Object {
+	l := make([]Object, 0, len(t.TileMap)+len(t.BlockMap))
 	for i := range t.TileMap {
 		if t.TileMap[i] == 0 {
 			continue

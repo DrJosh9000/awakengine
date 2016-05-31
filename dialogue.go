@@ -96,10 +96,11 @@ func (d *DialogueDisplay) parts() drawList {
 	l := d.bubble.parts()
 	l = append(l, d.text.parts()...)
 	if d.avatar != nil {
-		l = append(l, &struct {
+		av := &struct {
 			*SheetFrame
 			Parent
-		}{d.avatar, Parent{d.bubble}})
+		}{d.avatar, Parent{d.bubble}}
+		l = append(l, drawPosition{av})
 	}
 	for _, b := range d.buttons {
 		l = append(l, b.parts()...)
