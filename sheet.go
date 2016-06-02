@@ -26,7 +26,7 @@ type Sheet struct {
 func (s *Sheet) ImageKey() string { return s.Key }
 
 // Src returns the source rectangle for frame number f.
-func (s *Sheet) Src(f int) (x0, y0, x1, y1 int) {
+func (s *Sheet) FrameSrc(f int) (x0, y0, x1, y1 int) {
 	if s.Columns == 0 {
 		s.Columns = s.Frames
 	}
@@ -40,7 +40,7 @@ func (s *Sheet) Src(f int) (x0, y0, x1, y1 int) {
 }
 
 // Dst returns the destination rectangle with the top-left corner at position p.
-func (s *Sheet) Dst(p vec.I2) (x0, y0, x1, y1 int) {
+func (s *Sheet) PosDst(p vec.I2) (x0, y0, x1, y1 int) {
 	x0, y0 = p.C()
 	x1, y1 = p.Add(s.FrameSize).C()
 	return
@@ -53,5 +53,5 @@ type SheetFrame struct {
 	P vec.I2
 }
 
-func (s *SheetFrame) Src() (x0, y0, x1, y1 int) { return s.Sheet.Src(s.F) }
-func (s *SheetFrame) Dst() (x0, y0, x1, y1 int) { return s.Sheet.Dst(s.P) }
+func (s *SheetFrame) Src() (x0, y0, x1, y1 int) { return s.FrameSrc(s.F) }
+func (s *SheetFrame) Dst() (x0, y0, x1, y1 int) { return s.PosDst(s.P) }

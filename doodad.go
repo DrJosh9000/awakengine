@@ -25,7 +25,7 @@ type BaseDoodad struct {
 	UL, DR vec.I2 // base obstacle box (frame relative)
 }
 
-func (b *BaseDoodad) Src() (x0, y0, x1, y1 int) { return b.Sheet.Src(b.Frame) }
+func (b *BaseDoodad) Src() (x0, y0, x1, y1 int) { return b.FrameSrc(b.Frame) }
 
 // Doodad is an instance of a BaseDoodad in a specific location.
 type Doodad struct {
@@ -33,7 +33,7 @@ type Doodad struct {
 	*BaseDoodad
 }
 
-func (d *Doodad) Dst() (x0, y0, x1, y1 int) { return d.Sheet.Dst(d.P.Sub(d.Offset)) }
+func (d *Doodad) Dst() (x0, y0, x1, y1 int) { return d.PosDst(d.P.Sub(d.Offset)) }
 
 func (d *Doodad) Update(int)    {}
 func (d *Doodad) Fixed() bool   { return true }

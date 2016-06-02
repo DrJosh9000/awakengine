@@ -69,11 +69,13 @@ var (
 	dialogueStack []DialogueLine
 	dialogue      *DialogueDisplay
 
-	player           Unit
-	sprites          []Sprite
-	fixedObjects     drawList
-	looseObjects     drawList
-	displayedObjects drawList
+	player          Unit
+	sprites         []Sprite
+	fixedObjects    drawList
+	looseObjects    drawList
+	displayedFixed  drawList
+	displayedLoose  drawList
+	displayedMerged drawList
 )
 
 type Config struct {
@@ -347,11 +349,19 @@ func modelUpdate() error {
 	// Update camera to focus on player.
 	camPos = player.Pos().Sub(camSize.Div(2)).ClampLo(vec.I2{}).ClampHi(terrain.Size().Sub(camSize))
 
-	fixedObjects = fixedObjects.gc()
-	looseObjects = looseObjects.gc()
-	dlo := looseObjects.cull()
-	dlo.Sort()
-	displayedObjects = merge(fixedObjects.cull(), dlo)
+	fixedObjects = fixedObjects.gc(fixedObjects[:0])
+	looseObjects = looseObjects.gc(looseObjects[:0])
+	displayedFixed = fixedObjects.cull(displayedFixed[:0])
+	displayedLoose = looseObjects.cull(displayedLoose[:0])
+	displayedLoose.Sort()
+	displayedMerged = merge(displayedMerged[:0], displayedFixed, displayedLoose)
+	if config.Debug {
+		log.Printf("{len, cap}(fixedObjects): %d, %d", len(fixedObjects), cap(fixedObjects))
+		log.Printf("{len, cap}(looseObjects): %d, %d", len(looseObjects), cap(looseObjects))
+		log.Printf("{len, cap}(displayedFixed): %d, %d", len(displayedFixed), cap(displayedFixed))
+		log.Printf("{len, cap}(displayedLoose): %d, %d", len(displayedLoose), cap(displayedLoose))
+		log.Printf("{len, cap}(displayedMerged): %d, %d", len(displayedMerged), cap(displayedMerged))
+	}
 	return nil
 }
 
@@ -363,7 +373,7 @@ func update(screen *ebiten.Image) error {
 			return err
 		}
 	}
-	return displayedObjects.draw(screen) // One draw call.
+	return displayedMerged.draw(screen) // One draw call.
 }
 
 // Navigate attempts to construct a path within the terrain.

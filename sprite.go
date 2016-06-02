@@ -16,18 +16,39 @@ package awakengine
 
 import "github.com/DrJosh9000/vec"
 
-// Anim describes an animation sequence.
-type Anim struct {
-	*Sheet
-	Offset        vec.I2
-	FrameDuration []int // model frames to spend in each animation frame
+type StaticOffset vec.I2
+
+func (s StaticOffset) Offset(int) vec.I2 { return vec.I2(s) }
+
+// Playback describes playing an animation according to different frame durations and looping.
+type Playback struct {
+	SF, DF        int
+	FrameDuration []int // model frames to spend in each animation frame, assumes 1 for each frame otherwise
 	LoopTo        int   // return to this frame number when complete
 }
 
+func (p *Playback) Reset()     { p.SF, p.DF = 0, -1 }
+func (p *Playback) Frame() int { return p.SF }
+func (p *Playback) Update(int) {
+	p.DF++
+	if p.DF < p.FrameDuration[p.SF] {
+		return
+	}
+	p.DF = 0
+	p.SF++
+	if p.SF >= len(p.FrameDuration) {
+		p.SF = p.LoopTo
+	}
+}
+
 type Sprite interface {
-	Anim() *Anim
-	Pos() vec.I2
+	ImageKey() string
+	PosDst(pos vec.I2) (x0, y0, x1, y1 int)
+	FrameSrc(frame int) (x0, y0, x1, y1 int)
+	Offset(frame int) vec.I2
+
 	Frame() int
+	Pos() vec.I2
 	Update(t int)
 }
 
@@ -36,25 +57,18 @@ type SpriteObject struct {
 	Semiobject
 }
 
-func (s SpriteObject) ImageKey() string { return s.Anim().ImageKey() }
-
-func (s SpriteObject) Dst() (x0, y0, x1, y1 int) {
-	a := s.Anim()
-	b := s.Pos().Sub(a.Offset)
-	c := b.Add(a.FrameSize)
-	return b.X, b.Y, c.X, c.Y
-}
-
-func (s SpriteObject) Src() (x0, y0, x1, y1 int) { return s.Anim().Sheet.Src(s.Frame()) }
+func (s SpriteObject) Dst() (x0, y0, x1, y1 int) { return s.PosDst(s.Pos().Sub(s.Offset(s.Frame()))) }
+func (s SpriteObject) Src() (x0, y0, x1, y1 int) { return s.FrameSrc(s.Frame()) }
 
 // StaticSprite just displays whatever frame number it is given, forever.
 type StaticSprite struct {
-	A *Anim
+	S *Sheet
+	StaticOffset
 	F int
 	P vec.I2
 }
 
-func (s *StaticSprite) Anim() *Anim { return s.A }
-func (s *StaticSprite) Frame() int  { return s.F }
-func (s *StaticSprite) Pos() vec.I2 { return s.P }
-func (s *StaticSprite) Update(int)  {}
+func (s *StaticSprite) Sheet() *Sheet { return s.S }
+func (s *StaticSprite) Frame() int    { return s.F }
+func (s *StaticSprite) Pos() vec.I2   { return s.P }
+func (s *StaticSprite) Update(int)    {}
