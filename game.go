@@ -196,6 +196,9 @@ func load(g Game) error {
 		}
 	}
 
+	// Depends on terrain.
+	cameraFocus(player.Pos())
+
 	dd := make([]Object, 0, len(l.Doodads))
 	for _, d := range l.Doodads {
 		dd = append(dd, d)
@@ -260,8 +263,51 @@ func drawDebug(screen *ebiten.Image) error {
 }
 */
 
+func playNextDialogue() {
+	if len(dialogueStack) == 0 {
+		return
+	}
+	dialogue = DialogueFromLine(&dialogueStack[0])
+	fixedObjects = append(fixedObjects, dialogue.parts()...)
+	fixedObjects.Sort()
+}
+
+func evaluateTriggers() {
+trigLoop:
+	for k, trig := range triggers {
+		if trig.Fired {
+			continue
+		}
+		if trig.Active != nil && !trig.Active(modelFrame) {
+			continue
+		}
+		// All dependencies fired?
+		for _, dep := range trig.Depends {
+			if !triggers[dep].Fired {
+				continue trigLoop
+			}
+		}
+		if config.Debug {
+			log.Printf("firing %s with %d dialogues", k, len(trig.Dialogues))
+		}
+		if trig.Fire != nil {
+			trig.Fire(modelFrame)
+		}
+		dialogueStack = trig.Dialogues
+		dialogue = nil
+		player.GoIdle()
+		playNextDialogue()
+		trig.Fired = true
+		return
+	}
+}
+
+func cameraFocus(p vec.I2) {
+	camPos = p.Sub(camSize.Div(2)).ClampLo(vec.I2{}).ClampHi(terrain.Size().Sub(camSize))
+}
+
 // modelUpdate does update stuff, but no drawing. It is called once per config.FramesPerUpdate.
-func modelUpdate() error {
+func modelUpdate() {
 	// Read inputs
 	md := ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft)
 	if md {
@@ -290,65 +336,32 @@ func modelUpdate() error {
 	// Do we proceed with the game, or with the dialogue display?
 	if dialogue == nil {
 		// Got any triggers?
-		for k, trig := range triggers {
-			if !trig.Fired && trig.Active(modelFrame) {
-				// All dependencies fired?
-				for _, dep := range trig.Depends {
-					if !triggers[dep].Fired {
-						continue
-					}
-				}
-				if config.Debug {
-					log.Printf("firing %s with %d dialogues", k, len(trig.Dialogues))
-				}
-				if trig.Fire != nil {
-					trig.Fire(modelFrame)
-				}
-				dialogueStack = trig.Dialogues
-				dialogue = nil
-				player.GoIdle()
-				if len(dialogueStack) > 0 {
-					d, err := DialogueFromLine(&dialogueStack[0])
-					if err != nil {
-						return err
-					}
-					dialogue = d
-					fixedObjects = append(fixedObjects, dialogue.parts()...)
-					fixedObjects.Sort()
-				}
-				trig.Fired = true
-				break
-			}
-		}
-		if dialogue == nil {
-			modelFrame++
-
-			game.Handle(e)
-			for _, o := range looseObjects {
-				if u, ok := o.Object.(Sprite); ok {
-					u.Update(modelFrame)
-				}
-			}
-		}
+		evaluateTriggers()
 	} else if dialogue.Handle(e) {
 		// Play
 		dialogue.retire = true
 		dialogueStack = dialogueStack[1:]
 		dialogue = nil
-		if len(dialogueStack) > 0 {
-			d, err := DialogueFromLine(&dialogueStack[0])
-			if err != nil {
-				return err
-			}
-			dialogue = d
-			fixedObjects = append(fixedObjects, dialogue.parts()...)
-			fixedObjects.Sort()
+		playNextDialogue()
+		if len(dialogueStack) == 0 {
+			evaluateTriggers()
 		}
+		return // Dialogue absorbed the artifact^Wevent
 	}
 
-	// Update camera to focus on player.
-	camPos = player.Pos().Sub(camSize.Div(2)).ClampLo(vec.I2{}).ClampHi(terrain.Size().Sub(camSize))
+	// Is it game time yet?
+	if dialogue == nil {
+		modelFrame++
+		game.Handle(e)
+		for _, o := range looseObjects {
+			if u, ok := o.Object.(Sprite); ok {
+				u.Update(modelFrame)
+			}
+		}
+		cameraFocus(player.Pos())
+	}
 
+	// Reorganise objects to display.
 	fixedObjects = fixedObjects.gc(fixedObjects[:0])
 	looseObjects = looseObjects.gc(looseObjects[:0])
 	displayedFixed = fixedObjects.cull(displayedFixed[:0])
@@ -362,16 +375,13 @@ func modelUpdate() error {
 		log.Printf("{len, cap}(displayedLoose): %d, %d", len(displayedLoose), cap(displayedLoose))
 		log.Printf("{len, cap}(displayedMerged): %d, %d", len(displayedMerged), cap(displayedMerged))
 	}
-	return nil
 }
 
 // update is the main update function.
 func update(screen *ebiten.Image) error {
 	displayFrame++
 	if displayFrame%config.FramesPerUpdate == 0 {
-		if err := modelUpdate(); err != nil {
-			return err
-		}
+		modelUpdate()
 	}
 	return displayedMerged.draw(screen) // One draw call.
 }

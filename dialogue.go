@@ -25,10 +25,12 @@ type ButtonSpec struct {
 
 // DialogueLine is information for displaying a singe line of dialogue in a display.
 type DialogueLine struct {
-	Avatars *Sheet
-	Index   int
-	Text    string
-	Buttons []ButtonSpec
+	Avatars  *Sheet
+	Index    int
+	Text     string
+	Buttons  []ButtonSpec
+	AutoNext bool
+	Slowness int
 }
 
 // Dialogue is all the things needed for displaying blocking dialogue text.
@@ -39,15 +41,18 @@ type DialogueDisplay struct {
 	text     *Text
 	complete bool
 	retire   bool
+
+	autonext bool
 	avatar   *SheetFrame
 	visible  bool
+	slowness int
 }
 
 // DialogueFromLine creates a new DialogueDisplay.
-func DialogueFromLine(line *DialogueLine) (*DialogueDisplay, error) {
+func DialogueFromLine(line *DialogueLine) *DialogueDisplay {
 	basePos := vec.I2{10, camSize.Y - 80}
 	baseSize := vec.I2{camSize.X - 20, 70}
-	textPos := basePos.Add(vec.I2{5, 5})
+	textPos := basePos.Add(vec.I2{15, 15})
 	var avatar *SheetFrame
 	if line.Avatars != nil && line.Index >= 0 {
 		// Provide space for the avatar.
@@ -60,13 +65,15 @@ func DialogueFromLine(line *DialogueLine) (*DialogueDisplay, error) {
 	}
 	bk, _ := game.BubbleKey()
 	d := &DialogueDisplay{
-		frame:   0,
-		avatar:  avatar,
-		visible: true,
+		autonext: line.AutoNext,
+		slowness: line.Slowness,
+		avatar:   avatar,
+		frame:    0,
+		visible:  true,
 		text: &Text{
 			Text: line.Text,
 			Pos:  textPos,
-			Size: vec.I2{camSize.X - textPos.X - 20, 0},
+			Size: vec.I2{camSize.X - textPos.X - 35, 0},
 			Font: game.Font(),
 		},
 		bubble: &Bubble{
@@ -83,7 +90,7 @@ func DialogueFromLine(line *DialogueLine) (*DialogueDisplay, error) {
 		d.buttons = append(d.buttons, NewButton(s.Label, s.Action, p, p.Add(vec.I2{50, 18}), Parent{d.bubble}))
 		p.X += 65
 	}
-	return d, nil
+	return d
 }
 
 func (d *DialogueDisplay) Fixed() bool   { return true }
@@ -108,6 +115,13 @@ func (d *DialogueDisplay) parts() drawList {
 	return l
 }
 
+func (d *DialogueDisplay) finish() {
+	d.complete = true
+	for d.text.next < len(d.text.chars) {
+		d.text.Advance()
+	}
+}
+
 // Update updates things in the dialogue, based on user input or passage of time.
 func (d *DialogueDisplay) Handle(event Event) (dismiss bool) {
 	for _, b := range d.buttons {
@@ -115,21 +129,26 @@ func (d *DialogueDisplay) Handle(event Event) (dismiss bool) {
 			return true
 		}
 	}
+	if d.complete && d.autonext {
+		return true
+	}
 	if event.Type == EventMouseUp {
 		if d.complete && len(d.buttons) == 0 {
 			return true
 		}
-		// Finish.
-		d.complete = true
-		for d.text.next < len(d.text.chars) {
-			d.text.Advance()
+		if !d.autonext {
+			d.finish()
 		}
 	}
 	if !d.complete {
-		d.text.Advance()
-		d.text.Advance()
-		if d.text.next >= len(d.text.chars) {
-			d.complete = true
+		if d.slowness < 0 {
+			d.finish()
+		}
+		if d.slowness == 0 || d.frame%d.slowness == 0 {
+			d.text.Advance()
+			if d.text.next >= len(d.text.chars) {
+				d.complete = true
+			}
 		}
 	}
 	d.frame++

@@ -20,6 +20,10 @@ type StaticOffset vec.I2
 
 func (s StaticOffset) Offset(int) vec.I2 { return vec.I2(s) }
 
+type StaticPlayback int
+
+func (s StaticPlayback) Frame() int { return int(s) }
+
 // Playback describes playing an animation according to different frame durations and looping.
 type Playback struct {
 	SF, DF        int
@@ -42,11 +46,13 @@ func (p *Playback) Update(int) {
 }
 
 type Sprite interface {
+	// Templatey things.
 	ImageKey() string
 	PosDst(pos vec.I2) (x0, y0, x1, y1 int)
 	FrameSrc(frame int) (x0, y0, x1, y1 int)
 	Offset(frame int) vec.I2
 
+	// Instancey things.
 	Frame() int
 	Pos() vec.I2
 	Update(t int)
@@ -62,13 +68,11 @@ func (s SpriteObject) Src() (x0, y0, x1, y1 int) { return s.FrameSrc(s.Frame()) 
 
 // StaticSprite just displays whatever frame number it is given, forever.
 type StaticSprite struct {
-	S *Sheet
+	*Sheet
 	StaticOffset
-	F int
+	StaticPlayback
 	P vec.I2
 }
 
-func (s *StaticSprite) Sheet() *Sheet { return s.S }
-func (s *StaticSprite) Frame() int    { return s.F }
-func (s *StaticSprite) Pos() vec.I2   { return s.P }
-func (s *StaticSprite) Update(int)    {}
+func (s *StaticSprite) Pos() vec.I2 { return s.P }
+func (s *StaticSprite) Update(int)  {}
