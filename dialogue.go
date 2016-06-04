@@ -25,8 +25,7 @@ type ButtonSpec struct {
 
 // DialogueLine is information for displaying a singe line of dialogue in a display.
 type DialogueLine struct {
-	Avatars  *Sheet
-	Index    int
+	Avatar   *SheetFrame
 	Text     string
 	Buttons  []ButtonSpec
 	AutoNext bool
@@ -41,11 +40,10 @@ type DialogueDisplay struct {
 	text     *Text
 	complete bool
 	retire   bool
-
-	autonext bool
-	avatar   *SheetFrame
 	visible  bool
-	slowness int
+	avatar   *Billboard
+
+	line *DialogueLine
 }
 
 // DialogueFromLine creates a new DialogueDisplay.
@@ -53,23 +51,21 @@ func DialogueFromLine(line *DialogueLine) *DialogueDisplay {
 	basePos := vec.I2{10, camSize.Y - 80}
 	baseSize := vec.I2{camSize.X - 20, 70}
 	textPos := basePos.Add(vec.I2{15, 15})
-	var avatar *SheetFrame
-	if line.Avatars != nil && line.Index >= 0 {
+	var avatar *Billboard
+	if line.Avatar != nil {
 		// Provide space for the avatar.
-		textPos.X += line.Avatars.FrameSize.X + 5
-		avatar = &SheetFrame{
-			Sheet: line.Avatars,
-			F:     line.Index,
-			P:     vec.I2{15, camSize.Y - 80 + 2},
+		textPos.X += line.Avatar.Sheet.FrameSize.X + 5
+		avatar = &Billboard{
+			SheetFrame: line.Avatar,
+			P:          vec.I2{15, camSize.Y - 80 + 2},
 		}
 	}
 	bk, _ := game.BubbleKey()
 	d := &DialogueDisplay{
-		autonext: line.AutoNext,
-		slowness: line.Slowness,
-		avatar:   avatar,
-		frame:    0,
-		visible:  true,
+		line:    line,
+		avatar:  avatar,
+		frame:   0,
+		visible: true,
 		text: &Text{
 			Text: line.Text,
 			Pos:  textPos,
@@ -104,7 +100,7 @@ func (d *DialogueDisplay) parts() drawList {
 	l = append(l, d.text.parts()...)
 	if d.avatar != nil {
 		av := &struct {
-			*SheetFrame
+			*Billboard
 			Parent
 		}{d.avatar, Parent{d.bubble}}
 		l = append(l, drawPosition{av})
@@ -131,7 +127,7 @@ func (d *DialogueDisplay) Handle(event Event) bool {
 			return true
 		}
 	}
-	if d.complete && d.autonext {
+	if d.complete && d.line.AutoNext {
 		d.retire = true
 		return true
 	}
@@ -140,15 +136,15 @@ func (d *DialogueDisplay) Handle(event Event) bool {
 			d.retire = true
 			return true
 		}
-		if !d.autonext {
+		if !d.line.AutoNext {
 			d.finish()
 		}
 	}
 	if !d.complete {
-		if d.slowness < 0 {
+		if d.line.Slowness < 0 {
 			d.finish()
 		}
-		if d.slowness == 0 || d.frame%d.slowness == 0 {
+		if d.line.Slowness == 0 || d.frame%d.line.Slowness == 0 {
 			d.text.Advance()
 			if d.text.next >= len(d.text.chars) {
 				d.complete = true

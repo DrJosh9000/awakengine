@@ -27,13 +27,12 @@ func (s *Sheet) ImageKey() string { return s.Key }
 
 // Src returns the source rectangle for frame number f.
 func (s *Sheet) FrameSrc(f int) (x0, y0, x1, y1 int) {
-	if s.Columns == 0 {
-		s.Columns = s.Frames
-	}
-	if s.Frames == 0 {
-		s.Frames = s.Columns
-	}
 	f %= s.Frames
+	if s.Columns == 0 {
+		x0, y0 = vec.NewI2(f, 0).EMul(s.FrameSize).C()
+		x1, y1 = x0+s.FrameSize.X, y0+s.FrameSize.Y
+		return
+	}
 	x0, y0 = vec.Div(f, s.Columns).EMul(s.FrameSize).C()
 	x1, y1 = x0+s.FrameSize.X, y0+s.FrameSize.Y
 	return
@@ -46,12 +45,17 @@ func (s *Sheet) PosDst(p vec.I2) (x0, y0, x1, y1 int) {
 	return
 }
 
-// SheetFrame lets you specify a frame and a position in addition to a sheet.
+// SheetFrame lets you specify a frame in addition to a sheet.
 type SheetFrame struct {
 	*Sheet
-	F int
+	Index int
+}
+
+func (s *SheetFrame) Src() (x0, y0, x1, y1 int) { return s.FrameSrc(s.Index) }
+
+type Billboard struct {
+	*SheetFrame
 	P vec.I2
 }
 
-func (s *SheetFrame) Src() (x0, y0, x1, y1 int) { return s.FrameSrc(s.F) }
-func (s *SheetFrame) Dst() (x0, y0, x1, y1 int) { return s.PosDst(s.P) }
+func (b *Billboard) Dst() (x0, y0, x1, y1 int) { return b.PosDst(b.P) }

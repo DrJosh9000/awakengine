@@ -371,13 +371,15 @@ func modelUpdate() {
 	displayedLoose = looseObjects.cull(displayedLoose[:0])
 	displayedLoose.Sort()
 	displayedMerged = merge(displayedMerged[:0], displayedFixed, displayedLoose)
-	if config.Debug {
-		log.Printf("{len, cap}(fixedObjects): %d, %d", len(fixedObjects), cap(fixedObjects))
-		log.Printf("{len, cap}(looseObjects): %d, %d", len(looseObjects), cap(looseObjects))
-		log.Printf("{len, cap}(displayedFixed): %d, %d", len(displayedFixed), cap(displayedFixed))
-		log.Printf("{len, cap}(displayedLoose): %d, %d", len(displayedLoose), cap(displayedLoose))
-		log.Printf("{len, cap}(displayedMerged): %d, %d", len(displayedMerged), cap(displayedMerged))
-	}
+	/*
+		if config.Debug {
+			log.Printf("{len, cap}(fixedObjects): %d, %d", len(fixedObjects), cap(fixedObjects))
+			log.Printf("{len, cap}(looseObjects): %d, %d", len(looseObjects), cap(looseObjects))
+			log.Printf("{len, cap}(displayedFixed): %d, %d", len(displayedFixed), cap(displayedFixed))
+			log.Printf("{len, cap}(displayedLoose): %d, %d", len(displayedLoose), cap(displayedLoose))
+			log.Printf("{len, cap}(displayedMerged): %d, %d", len(displayedMerged), cap(displayedMerged))
+		}
+	*/
 }
 
 // update is the main update function.
@@ -396,7 +398,7 @@ func Navigate(from, to vec.I2) []vec.I2 {
 		// Go near to the cursor position.
 		e, q := obstacles.NearestPoint(to)
 		if config.Debug {
-			log.Printf("nearest edge: %v point: %v", e, q)
+			log.Printf("nearest edge: %#v to point: %#v", e, q)
 		}
 		q = q.Add(e.V.Sub(e.U).Normal().Sgn()) // Adjust it slightly...
 		path2, err2 := vec.FindPath(obstacles, paths, from, q, camPos, camPos.Add(camSize))
@@ -411,7 +413,7 @@ func Navigate(from, to vec.I2) []vec.I2 {
 		path = path2
 	}
 	if config.Debug {
-		log.Printf("path: %v", path)
+		log.Printf("path: %#v", path)
 	}
 	return path
 }
