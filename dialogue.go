@@ -123,17 +123,21 @@ func (d *DialogueDisplay) finish() {
 }
 
 // Update updates things in the dialogue, based on user input or passage of time.
-func (d *DialogueDisplay) Handle(event Event) (dismiss bool) {
+// Returns true if the event is handled.
+func (d *DialogueDisplay) Handle(event Event) bool {
 	for _, b := range d.buttons {
 		if b.Handle(event) {
+			d.retire = true
 			return true
 		}
 	}
 	if d.complete && d.autonext {
+		d.retire = true
 		return true
 	}
 	if event.Type == EventMouseUp {
 		if d.complete && len(d.buttons) == 0 {
+			d.retire = true
 			return true
 		}
 		if !d.autonext {
@@ -152,5 +156,5 @@ func (d *DialogueDisplay) Handle(event Event) (dismiss bool) {
 		}
 	}
 	d.frame++
-	return
+	return false
 }

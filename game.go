@@ -129,8 +129,7 @@ type Game interface {
 	// Font is the general/default typeface to use.
 	Font() Font
 
-	// Handle handles events.
-	Handle(e Event)
+	Handler
 
 	// Level provides the base level.
 	Level() (*Level, error)
@@ -306,6 +305,21 @@ func cameraFocus(p vec.I2) {
 	camPos = p.Sub(camSize.Div(2)).ClampLo(vec.I2{}).ClampHi(terrain.Size().Sub(camSize))
 }
 
+func clientUpdate(e Event) {
+	// Is it game time yet?
+	if dialogue != nil {
+		return
+	}
+	modelFrame++
+	game.Handle(e)
+	for _, o := range looseObjects {
+		if u, ok := o.Object.(Sprite); ok {
+			u.Update(modelFrame)
+		}
+	}
+	cameraFocus(player.Pos())
+}
+
 // modelUpdate does update stuff, but no drawing. It is called once per config.FramesPerUpdate.
 func modelUpdate() {
 	// Read inputs
@@ -337,28 +351,17 @@ func modelUpdate() {
 	if dialogue == nil {
 		// Got any triggers?
 		evaluateTriggers()
+		clientUpdate(e)
 	} else if dialogue.Handle(e) {
 		// Play
-		dialogue.retire = true
-		dialogueStack = dialogueStack[1:]
-		dialogue = nil
+		if dialogue.Retire() {
+			dialogueStack = dialogueStack[1:]
+			dialogue = nil
+		}
 		playNextDialogue()
 		if len(dialogueStack) == 0 {
 			evaluateTriggers()
 		}
-		return // Dialogue absorbed the artifact^Wevent
-	}
-
-	// Is it game time yet?
-	if dialogue == nil {
-		modelFrame++
-		game.Handle(e)
-		for _, o := range looseObjects {
-			if u, ok := o.Object.(Sprite); ok {
-				u.Update(modelFrame)
-			}
-		}
-		cameraFocus(player.Pos())
 	}
 
 	// Reorganise objects to display.
