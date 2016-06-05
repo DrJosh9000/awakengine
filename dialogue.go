@@ -47,9 +47,9 @@ type DialogueDisplay struct {
 }
 
 // DialogueFromLine creates a new DialogueDisplay.
-func DialogueFromLine(line *DialogueLine) *DialogueDisplay {
-	basePos := vec.I2{10, camSize.Y - 80}
-	baseSize := vec.I2{camSize.X - 20, 70}
+func DialogueFromLine(line *DialogueLine, scene *Scene) *DialogueDisplay {
+	basePos := vec.I2{10, scene.CameraSize.Y - 80}
+	baseSize := vec.I2{scene.CameraSize.X - 20, 70}
 	textPos := basePos.Add(vec.I2{15, 15})
 	var avatar *Billboard
 	if line.Avatar != nil {
@@ -57,7 +57,7 @@ func DialogueFromLine(line *DialogueLine) *DialogueDisplay {
 		textPos.X += line.Avatar.Sheet.FrameSize.X + 5
 		avatar = &Billboard{
 			SheetFrame: line.Avatar,
-			P:          vec.I2{15, camSize.Y - 80 + 2},
+			P:          vec.I2{15, scene.CameraSize.Y - 80 + 2},
 		}
 	}
 	bk, _ := game.BubbleKey()
@@ -69,46 +69,45 @@ func DialogueFromLine(line *DialogueLine) *DialogueDisplay {
 		text: &Text{
 			Text: line.Text,
 			Pos:  textPos,
-			Size: vec.I2{camSize.X - textPos.X - 35, 0},
+			Size: vec.I2{scene.CameraSize.X - textPos.X - 35, 0},
 			Font: game.Font(),
 		},
 		bubble: &Bubble{
-			ul:     basePos,
-			dr:     basePos.Add(baseSize),
-			imgkey: bk,
+			UL:  basePos,
+			DR:  basePos.Add(baseSize),
+			Key: bk,
 		},
 	}
-	d.bubble.Parent = Parent{d}
-	d.text.Parent = Parent{d.bubble}
+	d.bubble.ChildOf = ChildOf{d}
+	d.text.ChildOf = ChildOf{d.bubble}
 	d.text.Layout(false) // Rolls out the text for each Advance.
 	p := vec.I2{textPos.X + 15, basePos.Y + baseSize.Y - 30}
 	for _, s := range line.Buttons {
-		d.buttons = append(d.buttons, NewButton(s.Label, s.Action, p, p.Add(vec.I2{50, 18}), Parent{d.bubble}))
+		d.buttons = append(d.buttons, NewButton(s.Label, s.Action, p, p.Add(vec.I2{50, 18}), ChildOf{d.bubble}))
 		p.X += 65
 	}
 	return d
 }
 
-func (d *DialogueDisplay) Fixed() bool   { return true }
-func (d *DialogueDisplay) Retire() bool  { return d.retire }
-func (d *DialogueDisplay) InWorld() bool { return false }
-func (d *DialogueDisplay) Visible() bool { return d.visible }
-func (d *DialogueDisplay) Z() int        { return dialogueZ }
+func (d *DialogueDisplay) Parent() Semiobject { return nil }
+func (d *DialogueDisplay) Fixed() bool        { return true }
+func (d *DialogueDisplay) Retire() bool       { return d.retire }
+func (d *DialogueDisplay) Visible() bool      { return d.visible }
+func (d *DialogueDisplay) Z() int             { return dialogueZ }
 
-func (d *DialogueDisplay) parts() drawList {
-	l := d.bubble.parts()
-	l = append(l, d.text.parts()...)
-	if d.avatar != nil {
-		av := &struct {
-			*Billboard
-			Parent
-		}{d.avatar, Parent{d.bubble}}
-		l = append(l, drawPosition{av})
-	}
+func (d *DialogueDisplay) AddToScene(s *Scene) {
+	d.bubble.AddToScene(s)
+	d.text.AddToScene(s)
 	for _, b := range d.buttons {
-		l = append(l, b.parts()...)
+		b.AddToScene(s)
 	}
-	return l
+	if d.avatar == nil {
+		return
+	}
+	s.AddObject(&struct {
+		*Billboard
+		ChildOf
+	}{d.avatar, ChildOf{d.bubble}})
 }
 
 func (d *DialogueDisplay) finish() {

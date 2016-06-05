@@ -16,7 +16,7 @@ package awakengine
 
 type Drawable interface {
 	ImageKey() string
-	Dst() (x0, y0, x1, y1 int)
+	Dst() (x0, y0, x1, y1 int) // relative to something else, or maybe nothing.
 	Src() (x0, y0, x1, y1 int) // relative to the image referred to by ImageKey()
 }
 
@@ -34,26 +34,27 @@ func (s *StaticDrawable) ImageKey() string          { return s.Key }
 func (s *StaticDrawable) Dst() (x0, y0, x1, y1 int) { return s.D.C() }
 func (s *StaticDrawable) Src() (x0, y0, x1, y1 int) { return s.S.C() }
 
-// Semiobject is some import stuff for logical grouping.
+// Semiobject is some import stuff.
 type Semiobject interface {
-	Fixed() bool   // true if the object never moves - X, Y, or Z (but can still be world-relative).
-	InWorld() bool // true if the object exists in world-coordinates, false if screen coordinates
-	Retire() bool  // true if the object will never draw again and can be removed from the draw list
+	Fixed() bool        // true if the object never moves - X, Y, or Z (but can still be world-relative).
+	Parent() Semiobject // for drawing and Z purposes.
+	Retire() bool       // true if the object will never draw again and can be removed from the draw list
 	Visible() bool
 	Z() int
 }
 
 // StaticSemiobject implements Semiobjects with struct fields.
 type StaticSemiobject struct {
-	F, IW, R, V bool
-	Zed         int
+	F, R, V bool
+	P       Semiobject
+	Zed     int
 }
 
-func (s *StaticSemiobject) Fixed() bool   { return s.F }
-func (s *StaticSemiobject) InWorld() bool { return s.IW }
-func (s *StaticSemiobject) Retire() bool  { return s.R }
-func (s *StaticSemiobject) Visible() bool { return s.V }
-func (s *StaticSemiobject) Z() int        { return s.Zed }
+func (s *StaticSemiobject) Parent() Semiobject { return s.P }
+func (s *StaticSemiobject) Fixed() bool        { return s.F }
+func (s *StaticSemiobject) Retire() bool       { return s.R }
+func (s *StaticSemiobject) Visible() bool      { return s.V }
+func (s *StaticSemiobject) Z() int             { return s.Zed }
 
 // Object is everything, everything is an object.
 type Object interface {
@@ -61,7 +62,8 @@ type Object interface {
 	Semiobject
 }
 
-// Parent can be used to ensure an object is drawn over another one.
-type Parent struct{ Semiobject }
+// ChildOf can be used to ensure an object is drawn relative to another.
+type ChildOf struct{ Semiobject }
 
-func (p Parent) Z() int { return p.Semiobject.Z() + 1 }
+func (c ChildOf) Parent() Semiobject { return c.Semiobject }
+func (c ChildOf) Z() int             { return c.Semiobject.Z() + 1 }

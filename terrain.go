@@ -49,9 +49,10 @@ func ImageAsMap(imgkey string) ([]uint8, vec.I2, error) {
 }
 
 // loadTerrain loads from a paletted image file.
-func loadTerrain(level *Level) (*Terrain, error) {
+func loadTerrain(level *Level, par ChildOf) (*Terrain, error) {
 	bs := vec.I2{level.TileSize, level.TileSize + level.BlockHeight}
 	t := &Terrain{
+		ChildOf:   par,
 		Level:     level,
 		blockSize: bs,
 	}
@@ -64,13 +65,13 @@ func loadTerrain(level *Level) (*Terrain, error) {
 	return t, nil
 }
 
-func (t *Terrain) parts() []Object {
-	l := make([]Object, 0, len(t.TileMap)+len(t.BlockMap))
+// register adds terrain objects to the scene.
+func (t *Terrain) AddToScene(s *Scene) {
 	for i := range t.TileMap {
 		if t.TileMap[i] == 0 {
 			continue
 		}
-		l = append(l, &tileObject{
+		s.AddObject(&tileObject{
 			Terrain: t,
 			i:       i,
 			d:       vec.Div(i, t.MapSize.X).Mul(t.TileSize),
@@ -81,18 +82,16 @@ func (t *Terrain) parts() []Object {
 			continue
 		}
 		d := vec.Div(i, t.MapSize.X).Mul(t.TileSize)
-		l = append(l, &blockObject{
+		s.AddObject(&blockObject{
 			Terrain: t,
 			i:       i,
 			d:       d.Sub(vec.I2{0, t.BlockHeight}),
 			z:       d.Y,
 		})
 	}
-	return l
 }
 
 func (t *Terrain) Fixed() bool   { return true }
-func (t *Terrain) InWorld() bool { return true }
 func (t *Terrain) Retire() bool  { return false }
 func (t *Terrain) Visible() bool { return true }
 
@@ -143,6 +142,7 @@ func (b *blockObject) Z() int { return b.z }
 // Terrain is the base layer of the game world.
 type Terrain struct {
 	*Level
+	ChildOf
 
 	blockSize    vec.I2 // full size of each block (frame size for blockset)
 	blocksetSize vec.I2 // size of the block map in blocks.
@@ -191,7 +191,7 @@ func (t *Terrain) Blocking(i, j int) bool {
 // fatUL, fatDR, and paths will be based on vertices at convex points of
 // the obstacle graph plus 1 pixel in both dimensions outwards from the
 // convex vertex.
-func (t *Terrain) ObstaclesAndPaths(fatUL, fatDR vec.I2) (obstacles, paths *vec.Graph) {
+func (t *Terrain) ObstaclesAndPaths(fatUL, fatDR, limit vec.I2) (obstacles, paths *vec.Graph) {
 	o := vec.NewGraph()
 	// Store a separate vertex set for path generation, because we only care
 	// about convex corners.
@@ -333,10 +333,10 @@ func (t *Terrain) ObstaclesAndPaths(fatUL, fatDR vec.I2) (obstacles, paths *vec.
 	for u := range pVerts {
 		for v := range pVerts {
 			// Cull edges that are too tall/wide for the viewport.
-			if vec.Abs(u.X-v.X) > camSize.X {
+			if vec.Abs(u.X-v.X) > limit.X {
 				continue
 			}
-			if vec.Abs(u.Y-v.Y) > camSize.Y {
+			if vec.Abs(u.Y-v.Y) > limit.Y {
 				continue
 			}
 			// Cull edges that intersect an obstacle. Do this for backfacing obstacle edges,

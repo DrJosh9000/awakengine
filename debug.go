@@ -14,6 +14,7 @@
 
 package awakengine
 
+/*
 import (
 	"image/color"
 
@@ -53,3 +54,4 @@ func (v GraphView) Color(i int) color.Color {
 	}
 	return v.normalColour
 }
+*/

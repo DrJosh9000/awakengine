@@ -22,24 +22,24 @@ type Button struct {
 	Action func()
 }
 
-func NewButton(text string, action func(), ul, dr vec.I2, parent Parent) *Button {
+func NewButton(text string, action func(), ul, dr vec.I2, par ChildOf) *Button {
 	sz := dr.Sub(ul)
 	bk, _ := game.BubbleKey()
 	b := &Button{
 		Action: action,
 		Bubble: &Bubble{
-			ul:     ul,
-			dr:     dr,
-			imgkey: bk,
-			Parent: parent,
+			UL:      ul,
+			DR:      dr,
+			Key:     bk,
+			ChildOf: par,
 		},
 		Text: &Text{
 			Text: text,
-			Size: sz,
+			Size: sz.Sub(vec.I2{10, 10}),
 			Font: game.Font(),
 		},
 	}
-	b.Text.Parent = Parent{b.Bubble}
+	b.Text.ChildOf = ChildOf{b.Bubble}
 	b.Text.Layout(true)
 	b.Text.Pos = ul.Add(sz.Sub(b.Text.Size).Div(2)) // Centre text within button.
 	return b
@@ -47,24 +47,25 @@ func NewButton(text string, action func(), ul, dr vec.I2, parent Parent) *Button
 
 func (b *Button) Handle(e Event) (handled bool) {
 	k1, k2 := game.BubbleKey()
-	if e.Pos.InRect(b.ul, b.dr) {
+	if e.Pos.InRect(b.Bubble.UL, b.Bubble.DR) {
 		switch {
 		case e.MouseDown:
 			b.Text.Invert = true
-			b.imgkey = k2
+			b.Bubble.Key = k2
 		case e.Type == EventMouseUp:
 			b.Text.Invert = false
-			b.imgkey = k1
+			b.Bubble.Key = k1
 			b.Action()
 			return true
 		}
 		return false
 	}
 	b.Text.Invert = false
-	b.imgkey = k1
+	b.Bubble.Key = k1
 	return false
 }
 
-func (b *Button) parts() drawList {
-	return append(b.Bubble.parts(), b.Text.parts()...)
+func (b *Button) AddToScene(s *Scene) {
+	b.Bubble.AddToScene(s)
+	b.Text.AddToScene(s)
 }

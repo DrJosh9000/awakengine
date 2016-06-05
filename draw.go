@@ -21,18 +21,27 @@ import (
 )
 
 // drawPosition adjusts the source rectangle to refer to the texture atlas, and
-// destination rectangle of in-world objects to refer to screen coordinates.
+// destination rectangle of relative objects to refer to screen coordinates.
 type drawPosition struct{ Object }
 
 func (p drawPosition) Dst() (x0, y0, x1, y1 int) {
 	x0, y0, x1, y1 = p.Object.Dst()
-	if !p.Object.InWorld() {
-		return
+	x, y := 0, 0
+	for q := p.Parent(); q != nil; q = q.Parent() {
+		r, ok := q.(interface {
+			Dst() (x0, y0, x1, y1 int)
+		})
+		if !ok {
+			continue
+		}
+		tx, ty, _, _ := r.Dst()
+		x += tx
+		y += ty
 	}
-	x0 -= camPos.X
-	y0 -= camPos.Y
-	x1 -= camPos.X
-	y1 -= camPos.Y
+	x0 += x
+	y0 += y
+	x1 += x
+	y1 += y
 	return
 }
 
@@ -46,12 +55,13 @@ func (p drawPosition) Src() (x0, y0, x1, y1 int) {
 	return
 }
 
-func (p drawPosition) InWorld() bool    { return false } // Once positioned, always in screen coordinates.
-func (p drawPosition) ImageKey() string { return "" }    // Once positioned, always in texture atlas coordinates.
+func (p drawPosition) Parent() Semiobject { return nil } // Once positioned, always in screen coordinates.
+func (p drawPosition) ImageKey() string   { return "" }  // Once positioned, always in texture atlas coordinates.
 
 // drawList is a Z-sortable list of objects in texture atlas/screen coordinates.
 type drawList []drawPosition
 
+/*
 // makeDrawLists makes a fixed and loose drawList out of the slices of objects being passed in.
 func makeDrawLists(objs ...[]Object) (fixed, loose drawList) {
 	var f, l drawList
@@ -71,6 +81,7 @@ func makeDrawLists(objs ...[]Object) (fixed, loose drawList) {
 	}
 	return f, l
 }
+*/
 
 // Implementing sort.Interface
 func (d drawList) Len() int           { return len(d) }
@@ -97,12 +108,12 @@ func (d drawList) subslice(dst drawList, keep func(Object) bool) drawList {
 
 // cull removes invisible objects and places visible objects in dst. dst can be d[:0].
 // Visibility is determined by calling Visible() and by testing the Dst rectangle.
-func (d drawList) cull(dst drawList) drawList {
+func (d drawList) cull(dst drawList, scene *Scene) drawList {
 	return d.subslice(dst, func(o Object) bool {
 		if !o.Visible() {
 			return false
 		}
-		if x0, y0, x1, y1 := o.Dst(); x1 <= 0 || y1 <= 0 || x0 > camSize.X || y0 > camSize.Y {
+		if x0, y0, x1, y1 := o.Dst(); x1 <= 0 || y1 <= 0 || x0 > scene.CameraSize.X || y0 > scene.CameraSize.Y {
 			return false
 		}
 		return true

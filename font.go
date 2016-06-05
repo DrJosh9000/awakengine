@@ -29,28 +29,6 @@ type CharInfo struct {
 	X, Y, Width, Height, XOffset, YOffset, XAdvance int
 }
 
-type Text struct {
-	Pos, Size vec.I2
-	Font
-	Parent
-	Text   string
-	Invert bool
-	chars  []oneChar
-	next   int
-}
-
-func (s *Text) ImageKey() string { return s.Font.ImageKey(s.Invert) }
-
-func (s *Text) parts() drawList {
-	l := make(drawList, len(s.chars))
-	for i := range s.chars {
-		l[i] = drawPosition{&s.chars[i]}
-	}
-	return l
-}
-
-func (s *Text) Z() int { return s.Semiobject.Z() + 1 }
-
 type oneChar struct {
 	*Text
 	pos     vec.I2
@@ -75,23 +53,43 @@ func (s *oneChar) Dst() (x0, y0, x1, y1 int) {
 
 func (s *oneChar) Visible() bool { return s.visible && s.Text.Visible() }
 
-// Advance makes the next character visible.
-func (s *Text) Advance() error {
-	if s.next < len(s.chars) {
-		s.chars[s.next].visible = true
+type Text struct {
+	Pos, Size vec.I2
+	Font
+	ChildOf
+	Text   string
+	Invert bool
+	chars  []oneChar
+	next   int
+}
+
+func (t *Text) ImageKey() string { return t.Font.ImageKey(t.Invert) }
+
+func (t *Text) AddToScene(s *Scene) {
+	for i := range t.chars {
+		s.AddObject(&t.chars[i])
 	}
-	s.next++
+}
+
+func (t *Text) Z() int { return t.Semiobject.Z() + 1 }
+
+// Advance makes the next character visible.
+func (t *Text) Advance() error {
+	if t.next < len(t.chars) {
+		t.chars[t.next].visible = true
+	}
+	t.next++
 	return nil
 }
 
 // Layout causes the text to lay out all the characters, and update
 // the size to exactly contain the text. Text will be wrapped to the
 // existing Size.X as a width.
-func (s *Text) Layout(visible bool) {
-	width := s.Size.X
+func (t *Text) Layout(visible bool) {
+	width := t.Size.X
 	maxW := 0
-	chars := make([]oneChar, 0, len(s.Text))
-	cm := s.Metrics()
+	chars := make([]oneChar, 0, len(t.Text))
+	cm := t.Metrics()
 	x, y := 0, 0
 	wordStartC, wordStartI := 0, 0 // chars index, Text index
 	wrapIt := func(end int) {
@@ -102,26 +100,26 @@ func (s *Text) Layout(visible bool) {
 			maxW = x
 		}
 		x = 0
-		y += s.LineHeight()
+		y += t.LineHeight()
 		// Fix previous word.
 		for i, j := wordStartC, wordStartI; j < end; i, j = i+1, j+1 {
-			c := s.Text[j]
+			c := t.Text[j]
 			ci := cm[c]
 			chars[i].pos = vec.I2{x, y}
 			x += ci.XAdvance
 		}
 	}
-	for i := range s.Text {
-		if s.Text[i] == '\n' {
+	for i := range t.Text {
+		if t.Text[i] == '\n' {
 			x = 0
-			y += s.LineHeight()
+			y += t.LineHeight()
 			wordStartC = len(chars)
 			wordStartI = i + 1
 			continue
 		}
-		c := s.Text[i]
+		c := t.Text[i]
 		ci := cm[c]
-		if s.Text[i] == ' ' {
+		if t.Text[i] == ' ' {
 			wrapIt(i)
 			wordStartC = len(chars)
 			wordStartI = i + 1
@@ -129,17 +127,17 @@ func (s *Text) Layout(visible bool) {
 			continue
 		}
 		chars = append(chars, oneChar{
-			Text:    s,
+			Text:    t,
 			pos:     vec.I2{x, y},
 			c:       c,
 			visible: visible,
 		})
 		x += ci.XAdvance
 	}
-	wrapIt(len(s.Text))
+	wrapIt(len(t.Text))
 	if x > maxW {
 		maxW = x
 	}
-	s.chars = chars
-	s.Size = vec.I2{maxW, y + s.LineHeight()}
+	t.chars = chars
+	t.Size = vec.I2{maxW, y + t.LineHeight()}
 }

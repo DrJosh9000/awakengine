@@ -58,9 +58,9 @@ var (
 	lastCursorPos vec.I2
 
 	pixelSize = 3
-	camSize   = vec.I2{267, 150}
-	camPos    = vec.I2{0, 0}
-	title     = "AwakEngine"
+	//camSize   = vec.I2{267, 150}
+	//camPos    = vec.I2{0, 0}
+	title = "AwakEngine"
 
 	terrain          *Terrain
 	obstacles, paths *vec.Graph
@@ -69,13 +69,8 @@ var (
 	dialogueStack []DialogueLine
 	dialogue      *DialogueDisplay
 
-	player          Unit
-	sprites         []Sprite
-	fixedObjects    drawList
-	looseObjects    drawList
-	displayedFixed  drawList
-	displayedLoose  drawList
-	displayedMerged drawList
+	player  Unit
+	sprites []Sprite
 )
 
 type Config struct {
@@ -134,25 +129,23 @@ type Game interface {
 	// Level provides the base level.
 	Level() (*Level, error)
 
-	// Objects provides non-terrain objects.
-	// Do not include Doodads.
-	// Include the player object and other sprites.
-	Objects() []Object
-
 	// Player provides the player unit.
 	Player() Unit
+
+	Scene() *Scene
 
 	// Triggers provide some dynamic behaviour.
 	Triggers() map[string]*Trigger
 
 	// Viewport is the size of the window and the pixels in the window.
-	Viewport() (camSize vec.I2, pixelSize int, title string)
+	Viewport() (pixelSize int, title string)
 }
 
 // load prepares assets for use by the game.
 func load(g Game) error {
 	game = g
-	camSize, pixelSize, title = game.Viewport()
+	scene := game.Scene()
+	pixelSize, title = game.Viewport()
 
 	if err := loadAllImages(); err != nil {
 		return fmt.Errorf("loading images: %v", err)
@@ -166,7 +159,7 @@ func load(g Game) error {
 		return fmt.Errorf("loading level: %v", err)
 	}
 
-	t, err := loadTerrain(l)
+	t, err := loadTerrain(l, ChildOf{scene})
 	if err != nil {
 		return fmt.Errorf("loading terrain: %v", err)
 	}
@@ -180,7 +173,7 @@ func load(g Game) error {
 		ul, dr := player.Footprint()
 		ul = ul.Mul(-1)
 		dr = dr.Mul(-1)
-		obstacles, paths = t.ObstaclesAndPaths(dr, ul)
+		obstacles, paths = t.ObstaclesAndPaths(dr, ul, scene.CameraSize)
 		if config.LevelGeomDump != "" {
 			f, err := os.Create(config.LevelGeomDump)
 			if err != nil {
@@ -195,16 +188,9 @@ func load(g Game) error {
 		}
 	}
 
-	// Depends on terrain.
-	cameraFocus(player.Pos())
-
-	dd := make([]Object, 0, len(l.Doodads))
-	for _, d := range l.Doodads {
-		dd = append(dd, d)
-	}
-
-	fixedObjects, looseObjects = makeDrawLists(game.Objects(), terrain.parts(), dd)
-	fixedObjects.Sort()
+	scene.CameraFocus(player.Pos())
+	terrain.AddToScene(scene)
+	scene.sortFixedIfNeeded()
 	return nil
 }
 
@@ -223,7 +209,8 @@ func Run(g Game, cfg *Config) error {
 		defer f.Close()
 		up = ebitenutil.RecordScreenAsGIF(up, f, cfg.RecordingFrames)
 	}
-	return ebiten.Run(up, camSize.X, camSize.Y, pixelSize, title)
+	cs := g.Scene().CameraSize
+	return ebiten.Run(up, cs.X, cs.Y, pixelSize, title)
 }
 
 /*
@@ -266,9 +253,8 @@ func playNextDialogue() {
 	if len(dialogueStack) == 0 {
 		return
 	}
-	dialogue = DialogueFromLine(&dialogueStack[0])
-	fixedObjects = append(fixedObjects, dialogue.parts()...)
-	fixedObjects.Sort()
+	dialogue = DialogueFromLine(&dialogueStack[0], game.Scene())
+	dialogue.AddToScene(game.Scene())
 }
 
 func evaluateTriggers() {
@@ -301,10 +287,6 @@ trigLoop:
 	}
 }
 
-func cameraFocus(p vec.I2) {
-	camPos = p.Sub(camSize.Div(2)).ClampLo(vec.I2{}).ClampHi(terrain.Size().Sub(camSize))
-}
-
 func clientUpdate(e Event) {
 	// Is it game time yet?
 	if dialogue != nil {
@@ -312,12 +294,12 @@ func clientUpdate(e Event) {
 	}
 	modelFrame++
 	game.Handle(e)
-	for _, o := range looseObjects {
+	for _, o := range game.Scene().loose {
 		if u, ok := o.Object.(Sprite); ok {
 			u.Update(modelFrame)
 		}
 	}
-	cameraFocus(player.Pos())
+	game.Scene().CameraFocus(player.Pos())
 }
 
 // modelUpdate does update stuff, but no drawing. It is called once per config.FramesPerUpdate.
@@ -334,7 +316,7 @@ func modelUpdate() {
 	}
 	e := Event{
 		Time:      modelFrame,
-		Pos:       lastCursorPos.Add(camPos),
+		Pos:       lastCursorPos.Add(game.Scene().CameraPos),
 		MouseDown: md,
 	}
 	switch {
@@ -364,13 +346,7 @@ func modelUpdate() {
 		}
 	}
 
-	// Reorganise objects to display.
-	fixedObjects = fixedObjects.gc(fixedObjects[:0])
-	looseObjects = looseObjects.gc(looseObjects[:0])
-	displayedFixed = fixedObjects.cull(displayedFixed[:0])
-	displayedLoose = looseObjects.cull(displayedLoose[:0])
-	displayedLoose.Sort()
-	displayedMerged = merge(displayedMerged[:0], displayedFixed, displayedLoose)
+	game.Scene().Update()
 	/*
 		if config.Debug {
 			log.Printf("{len, cap}(fixedObjects): %d, %d", len(fixedObjects), cap(fixedObjects))
@@ -388,12 +364,12 @@ func update(screen *ebiten.Image) error {
 	if displayFrame%config.FramesPerUpdate == 0 {
 		modelUpdate()
 	}
-	return displayedMerged.draw(screen) // One draw call.
+	return game.Scene().Draw(screen)
 }
 
 // Navigate attempts to construct a path within the terrain.
 func Navigate(from, to vec.I2) []vec.I2 {
-	path, err := vec.FindPath(obstacles, paths, from, to, camPos, camPos.Add(camSize))
+	path, err := vec.FindPath(obstacles, paths, from, to, game.Scene().CameraPos, game.Scene().CameraPos.Add(game.Scene().CameraSize))
 	if err != nil {
 		// Go near to the cursor position.
 		e, q := obstacles.NearestPoint(to)
@@ -401,7 +377,7 @@ func Navigate(from, to vec.I2) []vec.I2 {
 			log.Printf("nearest edge: %#v to point: %#v", e, q)
 		}
 		q = q.Add(e.V.Sub(e.U).Normal().Sgn()) // Adjust it slightly...
-		path2, err2 := vec.FindPath(obstacles, paths, from, q, camPos, camPos.Add(camSize))
+		path2, err2 := vec.FindPath(obstacles, paths, from, q, game.Scene().CameraPos, game.Scene().CameraPos.Add(game.Scene().CameraSize))
 		if err2 != nil {
 			// Ok... Go as far as we can go.
 			p2, y := obstacles.NearestBlock(from, to)
