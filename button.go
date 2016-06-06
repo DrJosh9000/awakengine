@@ -28,26 +28,29 @@ func NewButton(text string, action func(), ul, dr vec.I2, par ChildOf) *Button {
 	b := &Button{
 		Action: action,
 		Bubble: &Bubble{
+			ChildOf: par,
 			UL:      ul,
 			DR:      dr,
 			Key:     bk,
-			ChildOf: par,
 		},
 		Text: &Text{
 			Text: text,
-			Size: sz.Sub(vec.I2{10, 10}),
+			Size: sz,
 			Font: game.Font(),
 		},
 	}
 	b.Text.ChildOf = ChildOf{b.Bubble}
 	b.Text.Layout(true)
-	b.Text.Pos = ul.Add(sz.Sub(b.Text.Size).Div(2)) // Centre text within button.
+	b.Text.Pos = sz.Sub(b.Text.Size).Div(2) // Centre text within button.
 	return b
 }
 
 func (b *Button) Handle(e Event) (handled bool) {
 	k1, k2 := game.BubbleKey()
-	if e.Pos.InRect(b.Bubble.UL, b.Bubble.DR) {
+	// So bad
+	x0, y0, x1, y1 := ScreenDst(b.Bubble)
+	ul, dr := vec.I2{x0, y0}.Sub(bubblePartSize), vec.I2{x1, y1}.Add(bubblePartSize)
+	if e.ScreenPos.InRect(ul, dr) {
 		switch {
 		case e.MouseDown:
 			b.Text.Invert = true

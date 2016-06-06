@@ -27,6 +27,7 @@ const (
 type Event struct {
 	Time      int
 	Type      EventType
-	Pos       vec.I2
+	ScreenPos vec.I2 // 0,0 is top left of screen.
+	ScenePos  vec.I2 // 0,0 is origin of world.
 	MouseDown bool
 }

@@ -48,7 +48,7 @@ func (p *Playback) Update(int) {
 type Sprite interface {
 	// Templatey things.
 	ImageKey() string
-	PosDst(pos vec.I2) (x0, y0, x1, y1 int)
+	Dst() (x0, y0, x1, y1 int)
 	FrameSrc(frame int) (x0, y0, x1, y1 int)
 	Offset(frame int) vec.I2
 
@@ -63,7 +63,11 @@ type SpriteObject struct {
 	Semiobject
 }
 
-func (s SpriteObject) Dst() (x0, y0, x1, y1 int) { return s.PosDst(s.Pos().Sub(s.Offset(s.Frame()))) }
+func (s SpriteObject) Dst() (x0, y0, x1, y1 int) {
+	x0, y0, x1, y1 = s.Sprite.Dst()
+	p := s.Pos().Sub(s.Offset(s.Frame()))
+	return x0 + p.X, y0 + p.Y, x1 + p.X, y1 + p.Y
+}
 func (s SpriteObject) Src() (x0, y0, x1, y1 int) { return s.FrameSrc(s.Frame()) }
 
 // StaticSprite just displays whatever frame number it is given, forever.

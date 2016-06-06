@@ -15,44 +15,68 @@
 package awakengine
 
 import (
+	"fmt"
 	"sort"
 
+	"github.com/DrJosh9000/vec"
 	"github.com/hajimehoshi/ebiten"
 )
+
+type Dst interface {
+	Dst() (x0, y0, x1, y1 int)
+}
+
+type SumDst struct {
+	d1, d2 Dst
+}
+
+func (a *SumDst) Dst() (x0, y0, x1, y1 int) {
+	x0, y0, x1, y1 = a.d1.Dst()
+	x2, y2, x3, y3 := a.d2.Dst()
+	return x0 + x2, y0 + y2, x1 + x3, y1 + y3
+}
+
+type DrawSize vec.I2
+
+func (d *DrawSize) Dst() (x0, y0, x1, y1 int) { return 0, 0, d.X, d.Y }
+
+type Offset vec.I2
+
+func (o *Offset) Dst() (x0, y0, x1, y1 int) { return o.X, o.Y, o.X, o.Y }
+
+type Parent interface {
+	Parent() Semiobject
+}
+
+// ScreenDst determines the final rectangle on screen for anything, accounting
+// for parent offsets.
+func ScreenDst(o interface{}) (x0, y0, x1, y1 int) {
+	if o == nil {
+		return
+	}
+	if r, ok := o.(Dst); ok {
+		x0, y0, x1, y1 = r.Dst()
+	}
+	if r, ok := o.(Parent); ok && r != nil {
+		x, y, _, _ := ScreenDst(r.Parent())
+		return x0 + x, y0 + y, x1 + x, y1 + y
+	}
+	return
+}
 
 // drawPosition adjusts the source rectangle to refer to the texture atlas, and
 // destination rectangle of relative objects to refer to screen coordinates.
 type drawPosition struct{ Object }
 
-func (p drawPosition) Dst() (x0, y0, x1, y1 int) {
-	x0, y0, x1, y1 = p.Object.Dst()
-	x, y := 0, 0
-	for q := p.Parent(); q != nil; q = q.Parent() {
-		r, ok := q.(interface {
-			Dst() (x0, y0, x1, y1 int)
-		})
-		if !ok {
-			continue
-		}
-		tx, ty, _, _ := r.Dst()
-		x += tx
-		y += ty
-	}
-	x0 += x
-	y0 += y
-	x1 += x
-	y1 += y
-	return
-}
+func (p drawPosition) Dst() (x0, y0, x1, y1 int) { return ScreenDst(p.Object) }
 
 func (p drawPosition) Src() (x0, y0, x1, y1 int) {
 	x0, y0, x1, y1 = p.Object.Src()
-	o := compositeOffset[p.Object.ImageKey()]
-	x0 += o.X
-	y0 += o.Y
-	x1 += o.X
-	y1 += o.Y
-	return
+	o, ok := compositeOffset[p.Object.ImageKey()]
+	if !ok {
+		panic(fmt.Sprintf("unknown image key %q", p.Object.ImageKey()))
+	}
+	return x0 + o.X, y0 + o.Y, x1 + o.X, y1 + o.Y
 }
 
 func (p drawPosition) Parent() Semiobject { return nil } // Once positioned, always in screen coordinates.
@@ -60,28 +84,6 @@ func (p drawPosition) ImageKey() string   { return "" }  // Once positioned, alw
 
 // drawList is a Z-sortable list of objects in texture atlas/screen coordinates.
 type drawList []drawPosition
-
-/*
-// makeDrawLists makes a fixed and loose drawList out of the slices of objects being passed in.
-func makeDrawLists(objs ...[]Object) (fixed, loose drawList) {
-	var f, l drawList
-	for _, ol := range objs {
-		for _, o := range ol {
-			r := &l
-			if o.Fixed() {
-				r = &f
-			}
-			// Is it a drawPosition already?
-			if dp, ok := o.(drawPosition); ok {
-				*r = append(*r, dp)
-			} else {
-				*r = append(*r, drawPosition{o})
-			}
-		}
-	}
-	return f, l
-}
-*/
 
 // Implementing sort.Interface
 func (d drawList) Len() int           { return len(d) }
@@ -120,10 +122,21 @@ func (d drawList) cull(dst drawList, scene *Scene) drawList {
 	})
 }
 
+// shouldRetire recursively figures out if o should retire.
+func shouldRetire(o Semiobject) bool {
+	if o.Retire() {
+		return true
+	}
+	if p := o.Parent(); p != nil {
+		return shouldRetire(p)
+	}
+	return false
+}
+
 // gc removes retired objects. dst can be d[:0].
 func (d drawList) gc(dst drawList) drawList {
 	return d.subslice(dst, func(o Object) bool {
-		return !o.Retire()
+		return !shouldRetire(o)
 	})
 }
 

@@ -18,19 +18,12 @@ const hudZ = 90000
 
 type HUDRegion struct {
 	*Bubble
-	Items []Drawable
-	V, R  bool
+	V, R bool
 }
 
 func (h *HUDRegion) AddToScene(s *Scene) {
 	h.Bubble.ChildOf = ChildOf{h}
 	h.Bubble.AddToScene(s)
-	for _, o := range h.Items {
-		s.AddObject(&struct {
-			Drawable
-			ChildOf
-		}{o, ChildOf{h.Bubble}})
-	}
 }
 
 func (h *HUDRegion) Fixed() bool        { return true }

@@ -36,10 +36,10 @@ func (s *StaticDrawable) Src() (x0, y0, x1, y1 int) { return s.S.C() }
 
 // Semiobject is some import stuff.
 type Semiobject interface {
-	Fixed() bool        // true if the object never moves - X, Y, or Z (but can still be world-relative).
+	Fixed() bool        // true if the object never moves - X, Y, or Z.
 	Parent() Semiobject // for drawing and Z purposes.
-	Retire() bool       // true if the object will never draw again and can be removed from the draw list
-	Visible() bool
+	Retire() bool       // true if the object will never draw again.
+	Visible() bool      // true if the object is visible if we are looking at it.
 	Z() int
 }
 

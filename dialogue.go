@@ -41,29 +41,22 @@ type DialogueDisplay struct {
 	complete bool
 	retire   bool
 	visible  bool
-	avatar   *Billboard
 
 	line *DialogueLine
 }
 
 // DialogueFromLine creates a new DialogueDisplay.
 func DialogueFromLine(line *DialogueLine, scene *Scene) *DialogueDisplay {
-	basePos := vec.I2{10, scene.CameraSize.Y - 80}
-	baseSize := vec.I2{scene.CameraSize.X - 20, 70}
-	textPos := basePos.Add(vec.I2{15, 15})
-	var avatar *Billboard
+	basePos := vec.I2{10, scene.CameraSize.Y - 74}
+	baseSize := vec.I2{scene.CameraSize.X - 20, 64}
+	textPos := vec.I2{10, 10}
 	if line.Avatar != nil {
 		// Provide space for the avatar.
 		textPos.X += line.Avatar.Sheet.FrameSize.X + 5
-		avatar = &Billboard{
-			SheetFrame: line.Avatar,
-			P:          vec.I2{15, scene.CameraSize.Y - 80 + 2},
-		}
 	}
 	bk, _ := game.BubbleKey()
 	d := &DialogueDisplay{
 		line:    line,
-		avatar:  avatar,
 		frame:   0,
 		visible: true,
 		text: &Text{
@@ -81,9 +74,13 @@ func DialogueFromLine(line *DialogueLine, scene *Scene) *DialogueDisplay {
 	d.bubble.ChildOf = ChildOf{d}
 	d.text.ChildOf = ChildOf{d.bubble}
 	d.text.Layout(false) // Rolls out the text for each Advance.
-	p := vec.I2{textPos.X + 15, basePos.Y + baseSize.Y - 30}
+	p := vec.I2{textPos.X + 15, baseSize.Y - 20}
 	for _, s := range line.Buttons {
-		d.buttons = append(d.buttons, NewButton(s.Label, s.Action, p, p.Add(vec.I2{50, 18}), ChildOf{d.bubble}))
+		d.buttons = append(d.buttons, NewButton(
+			s.Label,
+			s.Action,
+			p, p.Add(vec.I2{40, 11}),
+			ChildOf{d.bubble}))
 		p.X += 65
 	}
 	return d
@@ -101,13 +98,13 @@ func (d *DialogueDisplay) AddToScene(s *Scene) {
 	for _, b := range d.buttons {
 		b.AddToScene(s)
 	}
-	if d.avatar == nil {
+	if d.line.Avatar == nil {
 		return
 	}
 	s.AddObject(&struct {
-		*Billboard
+		*SheetFrame
 		ChildOf
-	}{d.avatar, ChildOf{d.bubble}})
+	}{d.line.Avatar, ChildOf{d.bubble}})
 }
 
 func (d *DialogueDisplay) finish() {

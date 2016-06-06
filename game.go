@@ -51,6 +51,7 @@ var (
 	config *Config
 
 	game         Game
+	scene        *Scene
 	modelFrame   int
 	displayFrame int
 
@@ -144,7 +145,7 @@ type Game interface {
 // load prepares assets for use by the game.
 func load(g Game) error {
 	game = g
-	scene := game.Scene()
+	scene = game.Scene()
 	pixelSize, title = game.Viewport()
 
 	if err := loadAllImages(); err != nil {
@@ -253,8 +254,8 @@ func playNextDialogue() {
 	if len(dialogueStack) == 0 {
 		return
 	}
-	dialogue = DialogueFromLine(&dialogueStack[0], game.Scene())
-	dialogue.AddToScene(game.Scene())
+	dialogue = DialogueFromLine(&dialogueStack[0], scene)
+	dialogue.AddToScene(scene)
 }
 
 func evaluateTriggers() {
@@ -292,14 +293,13 @@ func clientUpdate(e Event) {
 	if dialogue != nil {
 		return
 	}
-	modelFrame++
-	game.Handle(e)
-	for _, o := range game.Scene().loose {
+	for _, o := range scene.loose {
 		if u, ok := o.Object.(Sprite); ok {
 			u.Update(modelFrame)
 		}
 	}
-	game.Scene().CameraFocus(player.Pos())
+	game.Handle(e)
+	modelFrame++
 }
 
 // modelUpdate does update stuff, but no drawing. It is called once per config.FramesPerUpdate.
@@ -316,7 +316,8 @@ func modelUpdate() {
 	}
 	e := Event{
 		Time:      modelFrame,
-		Pos:       lastCursorPos.Add(game.Scene().CameraPos),
+		ScreenPos: lastCursorPos,
+		ScenePos:  lastCursorPos.Add(scene.CameraPos),
 		MouseDown: md,
 	}
 	switch {
@@ -346,7 +347,7 @@ func modelUpdate() {
 		}
 	}
 
-	game.Scene().Update()
+	scene.Update()
 	/*
 		if config.Debug {
 			log.Printf("{len, cap}(fixedObjects): %d, %d", len(fixedObjects), cap(fixedObjects))
@@ -364,12 +365,12 @@ func update(screen *ebiten.Image) error {
 	if displayFrame%config.FramesPerUpdate == 0 {
 		modelUpdate()
 	}
-	return game.Scene().Draw(screen)
+	return scene.Draw(screen)
 }
 
 // Navigate attempts to construct a path within the terrain.
 func Navigate(from, to vec.I2) []vec.I2 {
-	path, err := vec.FindPath(obstacles, paths, from, to, game.Scene().CameraPos, game.Scene().CameraPos.Add(game.Scene().CameraSize))
+	path, err := vec.FindPath(obstacles, paths, from, to, scene.CameraPos, scene.CameraPos.Add(scene.CameraSize))
 	if err != nil {
 		// Go near to the cursor position.
 		e, q := obstacles.NearestPoint(to)
@@ -377,7 +378,7 @@ func Navigate(from, to vec.I2) []vec.I2 {
 			log.Printf("nearest edge: %#v to point: %#v", e, q)
 		}
 		q = q.Add(e.V.Sub(e.U).Normal().Sgn()) // Adjust it slightly...
-		path2, err2 := vec.FindPath(obstacles, paths, from, q, game.Scene().CameraPos, game.Scene().CameraPos.Add(game.Scene().CameraSize))
+		path2, err2 := vec.FindPath(obstacles, paths, from, q, scene.CameraPos, scene.CameraPos.Add(scene.CameraSize))
 		if err2 != nil {
 			// Ok... Go as far as we can go.
 			p2, y := obstacles.NearestBlock(from, to)

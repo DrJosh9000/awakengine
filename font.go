@@ -30,28 +30,29 @@ type CharInfo struct {
 }
 
 type oneChar struct {
-	*Text
+	text *Text
+	ChildOf
 	pos     vec.I2
 	c       byte
 	visible bool
 }
 
-// Src implements ImageParts.
+func (s *oneChar) ImageKey() string { return s.text.Font.ImageKey(s.text.Invert) }
+
 func (s *oneChar) Src() (x0, y0, x1, y1 int) {
-	m := s.Metrics()
+	m := s.text.Metrics()
 	ci := m[s.c]
 	return ci.X, ci.Y, ci.X + ci.Width, ci.Y + ci.Height
 }
 
-// Dst implements ImageParts.
 func (s *oneChar) Dst() (x0, y0, x1, y1 int) {
-	m := s.Metrics()
+	m := s.text.Metrics()
 	ci := m[s.c]
-	x0, y0 = s.Text.Pos.X+s.pos.X+ci.XOffset, s.Text.Pos.Y+s.pos.Y+ci.YOffset+s.YOffset()
+	x0, y0 = s.pos.X+ci.XOffset, s.pos.Y+ci.YOffset+s.text.YOffset()
 	return x0, y0, x0 + ci.Width, y0 + ci.Height
 }
 
-func (s *oneChar) Visible() bool { return s.visible && s.Text.Visible() }
+func (s *oneChar) Visible() bool { return s.visible && s.text.Visible() }
 
 type Text struct {
 	Pos, Size vec.I2
@@ -63,15 +64,17 @@ type Text struct {
 	next   int
 }
 
-func (t *Text) ImageKey() string { return t.Font.ImageKey(t.Invert) }
+func (t *Text) Dst() (x0, y0, x1, y1 int) {
+	x0, y0 = t.Pos.C()
+	x1, y1 = t.Pos.Add(t.Size).C()
+	return
+}
 
 func (t *Text) AddToScene(s *Scene) {
 	for i := range t.chars {
 		s.AddObject(&t.chars[i])
 	}
 }
-
-func (t *Text) Z() int { return t.Semiobject.Z() + 1 }
 
 // Advance makes the next character visible.
 func (t *Text) Advance() error {
@@ -127,7 +130,8 @@ func (t *Text) Layout(visible bool) {
 			continue
 		}
 		chars = append(chars, oneChar{
-			Text:    t,
+			text:    t,
+			ChildOf: ChildOf{t},
 			pos:     vec.I2{x, y},
 			c:       c,
 			visible: visible,

@@ -38,10 +38,9 @@ func (s *Sheet) FrameSrc(f int) (x0, y0, x1, y1 int) {
 	return
 }
 
-// Dst returns the destination rectangle with the top-left corner at position p.
-func (s *Sheet) PosDst(p vec.I2) (x0, y0, x1, y1 int) {
-	x0, y0 = p.C()
-	x1, y1 = p.Add(s.FrameSize).C()
+// Dst returns the destination rectangle with the top-left corner at 0, 0.
+func (s *Sheet) Dst() (x0, y0, x1, y1 int) {
+	x1, y1 = s.FrameSize.C()
 	return
 }
 
@@ -52,10 +51,3 @@ type SheetFrame struct {
 }
 
 func (s *SheetFrame) Src() (x0, y0, x1, y1 int) { return s.FrameSrc(s.Index) }
-
-type Billboard struct {
-	*SheetFrame
-	P vec.I2
-}
-
-func (b *Billboard) Dst() (x0, y0, x1, y1 int) { return b.PosDst(b.P) }
