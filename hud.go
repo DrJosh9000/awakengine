@@ -17,17 +17,17 @@ package awakengine
 const hudZ = 90000
 
 type HUDRegion struct {
+	*View
 	*Bubble
 	V, R bool
 }
 
 func (h *HUDRegion) AddToScene(s *Scene) {
-	h.Bubble.ChildOf = ChildOf{h}
+	//h.Bubble.ChildOf = ChildOf{h}
 	h.Bubble.AddToScene(s)
 }
 
-func (h *HUDRegion) Fixed() bool        { return true }
-func (h *HUDRegion) Parent() Semiobject { return nil }
-func (h *HUDRegion) Retire() bool       { return h.R }
-func (h *HUDRegion) Visible() bool      { return h.V }
-func (h *HUDRegion) Z() int             { return hudZ }
+func (h *HUDRegion) Fixed() bool   { return true }
+func (h *HUDRegion) Retire() bool  { return h.R }
+func (h *HUDRegion) Visible() bool { return h.V }
+func (h *HUDRegion) Z() int        { return hudZ }

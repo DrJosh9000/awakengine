@@ -141,8 +141,8 @@ func (b *blockObject) Z() int { return b.z }
 
 // Terrain is the base layer of the game world.
 type Terrain struct {
+	*View
 	*Level
-	ChildOf
 
 	blockSize    vec.I2 // full size of each block (frame size for blockset)
 	blocksetSize vec.I2 // size of the block map in blocks.

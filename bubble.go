@@ -20,21 +20,16 @@ var bubblePartSize = vec.I2{5, 5}
 
 // Bubble renders a bubble at any size larger than (3*bubblePartSize)^2.
 type Bubble struct {
-	// Specify the area that needs to be surrounded. The border will be larger by
-	// bubblePartSize in each direction.
-	UL, DR vec.I2
-	Key    string
-	ChildOf
+	*View
+	Key string
 }
 
-func (b *Bubble) ImageKey() string          { return b.Key }
-func (b *Bubble) Bounds() (ul, dr vec.I2)   { return b.UL.Sub(bubblePartSize), b.DR.Add(bubblePartSize) }
-func (b *Bubble) Dst() (x0, y0, x1, y1 int) { return b.UL.X, b.UL.Y, b.DR.X, b.DR.Y }
-
 func (b *Bubble) AddToScene(s *Scene) {
-	for i := 0; i < 9; i++ {
-		s.AddObject(bubblePart{b, i})
-	}
+	s.AddPart(
+		bubblePart{b, 0}, bubblePart{b, 1}, bubblePart{b, 2},
+		bubblePart{b, 3}, bubblePart{b, 4}, bubblePart{b, 5},
+		bubblePart{b, 6}, bubblePart{b, 7}, bubblePart{b, 8},
+	)
 }
 
 type bubblePart struct {
@@ -42,37 +37,34 @@ type bubblePart struct {
 	i int
 }
 
-// Src implements ImageParts.
+func (b bubblePart) ImageKey() string { return b.Bubble.Key }
+
 func (b bubblePart) Src() (x0, y0, x1, y1 int) {
 	x0, y0 = vec.Div(b.i, 3).EMul(bubblePartSize).C()
 	x1, y1 = x0+bubblePartSize.X, y0+bubblePartSize.X
 	return
 }
 
-// Dst implements ImageParts.
 func (b bubblePart) Dst() (x0, y0, x1, y1 int) {
 	j, k := vec.Div(b.i, 3).C()
+	x0, y0, x1, y1 = b.View.Bounds().C()
 	switch j {
 	case 0:
-		x0 = b.UL.X - bubblePartSize.X
-		x1 = b.UL.X
+		x1 += bubblePartSize.X
 	case 1:
-		x0 = b.UL.X
-		x1 = b.DR.X
+		x0 += bubblePartSize.X
+		x1 -= bubblePartSize.X
 	case 2:
-		x0 = b.DR.X
-		x1 = b.DR.X + bubblePartSize.X
+		x0 -= bubblePartSize.X
 	}
 	switch k {
 	case 0:
-		y0 = b.UL.Y - bubblePartSize.X
-		y1 = b.UL.Y
+		y1 += bubblePartSize.X
 	case 1:
-		y0 = b.UL.Y
-		y1 = b.DR.Y
+		y0 += bubblePartSize.X
+		y1 -= bubblePartSize.X
 	case 2:
-		y0 = b.DR.Y
-		y1 = b.DR.Y + bubblePartSize.X
+		y0 -= bubblePartSize.X
 	}
 	return
 }

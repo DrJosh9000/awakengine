@@ -18,57 +18,33 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/DrJosh9000/vec"
 	"github.com/hajimehoshi/ebiten"
 )
 
-type Dst interface {
-	Dst() (x0, y0, x1, y1 int)
-}
-
-type SumDst struct {
-	d1, d2 Dst
-}
-
-func (a *SumDst) Dst() (x0, y0, x1, y1 int) {
-	x0, y0, x1, y1 = a.d1.Dst()
-	x2, y2, x3, y3 := a.d2.Dst()
-	return x0 + x2, y0 + y2, x1 + x3, y1 + y3
-}
-
-type DrawSize vec.I2
-
-func (d *DrawSize) Dst() (x0, y0, x1, y1 int) { return 0, 0, d.X, d.Y }
-
-type Offset vec.I2
-
-func (o *Offset) Dst() (x0, y0, x1, y1 int) { return o.X, o.Y, o.X, o.Y }
-
-type Parent interface {
-	Parent() Semiobject
-}
-
-// ScreenDst determines the final rectangle on screen for anything, accounting
-// for parent offsets.
-func ScreenDst(o interface{}) (x0, y0, x1, y1 int) {
-	if o == nil {
-		return
-	}
-	if r, ok := o.(Dst); ok {
-		x0, y0, x1, y1 = r.Dst()
-	}
-	if r, ok := o.(Parent); ok && r != nil {
-		x, y, _, _ := ScreenDst(r.Parent())
-		return x0 + x, y0 + y, x1 + x, y1 + y
-	}
-	return
+// Part participates in the draw system.
+type Part interface {
+	Container() *View
+	ImageKey() string
+	Dst() (x0, y0, x1, y1 int) // relative to the containing view.
+	Src() (x0, y0, x1, y1 int) // relative to the image referred to by ImageKey()
+	Fixed() bool
+	Retire() bool  // true if the quad will never draw again.
+	Visible() bool // true if the object is visible if we are looking at it.
+	Z() int
 }
 
 // drawPosition adjusts the source rectangle to refer to the texture atlas, and
-// destination rectangle of relative objects to refer to screen coordinates.
-type drawPosition struct{ Object }
+// destination rectangle to offset from the containing view.
+type drawPosition struct{ Part }
 
-func (p drawPosition) Dst() (x0, y0, x1, y1 int) { return ScreenDst(p.Object) }
+func (p drawPosition) Dst() (x0, y0, x1, y1 int) {
+	x0, y0, x1, y1 = p.Part.Dst()
+	if p.Container() == nil {
+		return
+	}
+	o := p.Container().Offset()
+	return x0 + o.X, y0 + o.Y, x1 + o.X, y1 + o.Y
+}
 
 func (p drawPosition) Src() (x0, y0, x1, y1 int) {
 	x0, y0, x1, y1 = p.Object.Src()
@@ -79,8 +55,8 @@ func (p drawPosition) Src() (x0, y0, x1, y1 int) {
 	return x0 + o.X, y0 + o.Y, x1 + o.X, y1 + o.Y
 }
 
-func (p drawPosition) Parent() Semiobject { return nil } // Once positioned, always in screen coordinates.
-func (p drawPosition) ImageKey() string   { return "" }  // Once positioned, always in texture atlas coordinates.
+func (p drawPosition) Container() *View { return nil } // Once positioned, always in screen coordinates.
+func (p drawPosition) ImageKey() string { return "" }  // Once positioned, always in texture atlas coordinates.
 
 // drawList is a Z-sortable list of objects in texture atlas/screen coordinates.
 type drawList []drawPosition
@@ -99,10 +75,10 @@ func (d drawList) Src(i int) (x0, y0, x1, y1 int) { return d[i].Src() }
 
 // subslice appends the keep items to dst one at a time, returning the final slice.
 // dst can be d[:0].
-func (d drawList) subslice(dst drawList, keep func(Object) bool) drawList {
-	for _, o := range d {
-		if keep(o) {
-			dst = append(dst, o)
+func (d drawList) subslice(dst drawList, keep func(Part) bool) drawList {
+	for _, p := range d {
+		if keep(p) {
+			dst = append(dst, p)
 		}
 	}
 	return dst
@@ -111,32 +87,21 @@ func (d drawList) subslice(dst drawList, keep func(Object) bool) drawList {
 // cull removes invisible objects and places visible objects in dst. dst can be d[:0].
 // Visibility is determined by calling Visible() and by testing the Dst rectangle.
 func (d drawList) cull(dst drawList, scene *Scene) drawList {
-	return d.subslice(dst, func(o Object) bool {
-		if !o.Visible() {
+	return d.subslice(dst, func(p Part) bool {
+		if !p.Visible() {
 			return false
 		}
-		if x0, y0, x1, y1 := o.Dst(); x1 <= 0 || y1 <= 0 || x0 > scene.CameraSize.X || y0 > scene.CameraSize.Y {
+		if x0, y0, x1, y1 := p.Dst(); x1 <= 0 || y1 <= 0 || x0 > scene.CameraSize.X || y0 > scene.CameraSize.Y {
 			return false
 		}
 		return true
 	})
 }
 
-// shouldRetire recursively figures out if o should retire.
-func shouldRetire(o Semiobject) bool {
-	if o.Retire() {
-		return true
-	}
-	if p := o.Parent(); p != nil {
-		return shouldRetire(p)
-	}
-	return false
-}
-
 // gc removes retired objects. dst can be d[:0].
 func (d drawList) gc(dst drawList) drawList {
 	return d.subslice(dst, func(o Object) bool {
-		return !shouldRetire(o)
+		return !o.Retire()
 	})
 }
 

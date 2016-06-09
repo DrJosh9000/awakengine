@@ -30,8 +30,7 @@ type CharInfo struct {
 }
 
 type oneChar struct {
-	text *Text
-	ChildOf
+	text    *Text
 	pos     vec.I2
 	c       byte
 	visible bool
@@ -55,19 +54,12 @@ func (s *oneChar) Dst() (x0, y0, x1, y1 int) {
 func (s *oneChar) Visible() bool { return s.visible && s.text.Visible() }
 
 type Text struct {
-	Pos, Size vec.I2
+	*View
 	Font
-	ChildOf
 	Text   string
 	Invert bool
 	chars  []oneChar
 	next   int
-}
-
-func (t *Text) Dst() (x0, y0, x1, y1 int) {
-	x0, y0 = t.Pos.C()
-	x1, y1 = t.Pos.Add(t.Size).C()
-	return
 }
 
 func (t *Text) AddToScene(s *Scene) {
@@ -89,7 +81,7 @@ func (t *Text) Advance() error {
 // the size to exactly contain the text. Text will be wrapped to the
 // existing Size.X as a width.
 func (t *Text) Layout(visible bool) {
-	width := t.Size.X
+	width := t.View.Size().X
 	maxW := 0
 	chars := make([]oneChar, 0, len(t.Text))
 	cm := t.Metrics()
@@ -143,5 +135,5 @@ func (t *Text) Layout(visible bool) {
 		maxW = x
 	}
 	t.chars = chars
-	t.Size = vec.I2{maxW, y + t.LineHeight()}
+	t.View.SetSize(vec.I2{maxW, y + t.LineHeight()})
 }

@@ -20,19 +20,13 @@ type GridDelegate interface {
 	Columns() int
 	NumItems() int
 	ItemSize() vec.I2
-	Item(i int, par ChildOf) Object
+	Item(i int, par *View) *View
 }
 
 type Grid struct {
+	*View
 	GridDelegate
-	ChildOf
-	UL    vec.I2
 	items []*GridItem
-}
-
-func (g *Grid) Dst() (x0, y0, x1, y1 int) {
-	x0, y0 = g.UL.C()
-	return
 }
 
 // AddToScene (re)loads all the items.
@@ -54,8 +48,8 @@ func (g *Grid) AddToScene(s *Scene) {
 }
 
 type GridItem struct {
+	*View
 	*Grid
-	ChildOf
 	Index  int
 	retire bool
 }

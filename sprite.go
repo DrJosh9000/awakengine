@@ -60,7 +60,6 @@ type Sprite interface {
 
 type SpriteObject struct {
 	Sprite
-	Semiobject
 }
 
 func (s SpriteObject) Dst() (x0, y0, x1, y1 int) {

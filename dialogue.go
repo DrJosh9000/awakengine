@@ -34,6 +34,7 @@ type DialogueLine struct {
 
 // Dialogue is all the things needed for displaying blocking dialogue text.
 type DialogueDisplay struct {
+	*View
 	bubble   *Bubble
 	buttons  []*Button
 	frame    int // frame number for this dialogue.
@@ -86,11 +87,8 @@ func DialogueFromLine(line *DialogueLine, scene *Scene) *DialogueDisplay {
 	return d
 }
 
-func (d *DialogueDisplay) Parent() Semiobject { return nil }
-func (d *DialogueDisplay) Fixed() bool        { return true }
-func (d *DialogueDisplay) Retire() bool       { return d.retire }
-func (d *DialogueDisplay) Visible() bool      { return d.visible }
-func (d *DialogueDisplay) Z() int             { return dialogueZ }
+func (d *DialogueDisplay) Fixed() bool { return true }
+func (d *DialogueDisplay) Z() int      { return dialogueZ }
 
 func (d *DialogueDisplay) AddToScene(s *Scene) {
 	d.bubble.AddToScene(s)

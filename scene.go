@@ -24,25 +24,40 @@ import (
 // Using a Scene as a parent will subtract the camera position. To use screen coordinates,
 // use a parent of nil.
 type Scene struct {
-	CameraPos  vec.I2
-	CameraSize vec.I2
+	*View
+	World, HUD *View
 
-	fixed          drawList
-	fixedNeedsSort bool
-	loose          drawList
-	dispFixed      drawList
-	dispLoose      drawList
-	dispMerged     drawList
+	fixed       drawList
+	fixedSorted bool
+	loose       drawList
+	dispFixed   drawList
+	dispLoose   drawList
+	dispMerged  drawList
 }
 
-// AddObject adds objects to the pipeline.
-func (s *Scene) AddObject(objs ...Object) {
-	for _, o := range objs {
-		dp, ok := o.(drawPosition)
+func NewScene(camSize, terrainSize vec.I2) *Scene {
+	s := &Scene{
+		View:  &View{},
+		World: &View{},
+		HUD:   &View{},
+	}
+	s.View.SetSize(camSize)
+	s.World.SetSize(terrainSize)
+	s.World.SetParent(s.View)
+	s.HUD.SetSize(camSize)
+	s.HUD.SetParent(s.View)
+	s.HUD.SetZ(100000) // HUD over World, always
+	return s
+}
+
+// AddPart adds parts to the pipeline.
+func (s *Scene) AddPart(parts ...Part) {
+	for _, p := range parts {
+		dp, ok := p.(drawPosition)
 		if !ok {
-			dp = drawPosition{o}
+			dp = drawPosition{p}
 		}
-		if o.Fixed() {
+		if p.Fixed() {
 			s.fixedNeedsSort = true
 			s.fixed = append(s.fixed, dp)
 		} else {
@@ -52,18 +67,22 @@ func (s *Scene) AddObject(objs ...Object) {
 }
 
 func (s *Scene) sortFixedIfNeeded() {
-	if !s.fixedNeedsSort {
+	if s.fixedSorted {
 		return
 	}
 	s.fixed.Sort()
-	s.fixedNeedsSort = false
+	s.fixedSorted = true
 }
 
+// CameraFocus sets the World offset such that p should be center of screen, or at least
+// within the bounds of the terrain.
 func (s *Scene) CameraFocus(p vec.I2) {
-	s.CameraPos = p.Sub(s.CameraSize.Div(2)).ClampLo(vec.I2{}).ClampHi(terrain.Size().Sub(s.CameraSize))
+	sz := s.Root.Size()
+	p = p.Sub(sz.Div(2))
+	p = p.ClampLo(vec.I2{})
+	p = p.ClampHi(w.World.Size().Sub(sz))
+	s.World.SetOffset(p.Mul(-1))
 }
-func (s *Scene) Dst() (x0, y0, x1, y1 int) { return -s.CameraPos.X, -s.CameraPos.Y, 0, 0 }
-
 func (s *Scene) Draw(screen *ebiten.Image) error { return s.dispMerged.draw(screen) }
 
 func (s *Scene) Update() {
@@ -76,9 +95,3 @@ func (s *Scene) Update() {
 	s.dispLoose.Sort()
 	s.dispMerged = merge(s.dispMerged[:0], s.dispFixed, s.dispLoose)
 }
-
-func (s *Scene) Fixed() bool        { return true }
-func (s *Scene) Parent() Semiobject { return nil }
-func (s *Scene) Retire() bool       { return false }
-func (s *Scene) Visible() bool      { return true }
-func (s *Scene) Z() int             { return 0 }

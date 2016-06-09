@@ -27,7 +27,6 @@ type BaseDoodad struct {
 // Doodad is an instance of a BaseDoodad in a specific location.
 type Doodad struct {
 	P vec.I2
-	ChildOf
 	*BaseDoodad
 }
 
