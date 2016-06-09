@@ -14,51 +14,49 @@
 
 package awakengine
 
-import "github.com/DrJosh9000/vec"
-
-type GridDelegate interface {
-	Columns() int
-	NumItems() int
-	ItemSize() vec.I2
-	Item(i int, par *View) *View
-}
-
-type Grid struct {
-	*View
-	GridDelegate
-	items []*GridItem
-}
-
-// AddToScene (re)loads all the items.
-func (g *Grid) AddToScene(s *Scene) {
-	for _, i := range g.items {
-		i.retire = true
-	}
-	g.items = make([]*GridItem, 0, g.NumItems())
-	for i := 0; i < g.NumItems(); i++ {
-		item := &GridItem{
-			Grid:    g,
-			ChildOf: ChildOf{g},
-			Index:   i,
-		}
-		o := g.Item(i, ChildOf{item})
-		g.items = append(g.items, item)
-		s.AddObject(o)
-	}
-}
-
-type GridItem struct {
-	*View
-	*Grid
-	Index  int
-	retire bool
-}
-
-func (i *GridItem) Dst() (x0, y0, x1, y1 int) {
-	is := i.ItemSize()
-	x0, y0 = vec.Div(i.Index, i.Columns()).EMul(is).C()
-	x1, y1 = x0+is.X, y0+is.Y
-	return
-}
-
-func (i *GridItem) Retire() bool { return i.retire }
+//import "github.com/DrJosh9000/vec"
+//
+//type GridDelegate interface {
+//	Columns() int
+//	NumItems() int
+//	ItemSize() vec.I2
+//	Item(i int, par *View) *View
+//}
+//
+//type Grid struct {
+//	*View
+//	GridDelegate
+//	items []*GridItem
+//}
+//
+//// AddToScene (re)loads all the items.
+//func (g *Grid) AddToScene(s *Scene) {
+//	for _, i := range g.items {
+//		i.retire = true
+//	}
+//	g.items = make([]*GridItem, 0, g.NumItems())
+//	for i := 0; i < g.NumItems(); i++ {
+//		item := &GridItem{
+//			View:  &View{},
+//			Grid:  g,
+//			Index: i,
+//		}
+//		item.View.SetParent(g.View)
+//		o := g.Item(i, item.View)
+//		g.items = append(g.items, item)
+//		s.AddPart(o)
+//	}
+//}
+//
+//type GridItem struct {
+//	*View
+//	*Grid
+//	Index int
+//}
+//
+//func (i *GridItem) Dst() (x0, y0, x1, y1 int) {
+//	is := i.ItemSize()
+//	x0, y0 = vec.Div(i.Index, i.Columns()).EMul(is).C()
+//	x1, y1 = x0+is.X, y0+is.Y
+//	return
+//}

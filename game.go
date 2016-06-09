@@ -160,7 +160,7 @@ func load(g Game) error {
 		return fmt.Errorf("loading level: %v", err)
 	}
 
-	t, err := loadTerrain(l, ChildOf{scene})
+	t, err := loadTerrain(l, scene.World)
 	if err != nil {
 		return fmt.Errorf("loading terrain: %v", err)
 	}
@@ -174,7 +174,7 @@ func load(g Game) error {
 		ul, dr := player.Footprint()
 		ul = ul.Mul(-1)
 		dr = dr.Mul(-1)
-		obstacles, paths = t.ObstaclesAndPaths(dr, ul, scene.CameraSize)
+		obstacles, paths = t.ObstaclesAndPaths(dr, ul, scene.View.Size())
 		if config.LevelGeomDump != "" {
 			f, err := os.Create(config.LevelGeomDump)
 			if err != nil {
@@ -210,7 +210,7 @@ func Run(g Game, cfg *Config) error {
 		defer f.Close()
 		up = ebitenutil.RecordScreenAsGIF(up, f, cfg.RecordingFrames)
 	}
-	cs := g.Scene().CameraSize
+	cs := g.Scene().View.Size()
 	return ebiten.Run(up, cs.X, cs.Y, pixelSize, title)
 }
 
@@ -294,7 +294,7 @@ func clientUpdate(e Event) {
 		return
 	}
 	for _, o := range scene.loose {
-		if u, ok := o.Object.(Sprite); ok {
+		if u, ok := o.Part.(Sprite); ok {
 			u.Update(modelFrame)
 		}
 	}
@@ -317,7 +317,7 @@ func modelUpdate() {
 	e := Event{
 		Time:      modelFrame,
 		ScreenPos: lastCursorPos,
-		ScenePos:  lastCursorPos.Add(scene.CameraPos),
+		ScenePos:  lastCursorPos.Add(scene.World.Offset()),
 		MouseDown: md,
 	}
 	switch {
@@ -370,7 +370,8 @@ func update(screen *ebiten.Image) error {
 
 // Navigate attempts to construct a path within the terrain.
 func Navigate(from, to vec.I2) []vec.I2 {
-	path, err := vec.FindPath(obstacles, paths, from, to, scene.CameraPos, scene.CameraPos.Add(scene.CameraSize))
+	limits := scene.View.Bounds().Translate(scene.World.Offset())
+	path, err := vec.FindPath(obstacles, paths, from, to, limits)
 	if err != nil {
 		// Go near to the cursor position.
 		e, q := obstacles.NearestPoint(to)
@@ -378,7 +379,7 @@ func Navigate(from, to vec.I2) []vec.I2 {
 			log.Printf("nearest edge: %#v to point: %#v", e, q)
 		}
 		q = q.Add(e.V.Sub(e.U).Normal().Sgn()) // Adjust it slightly...
-		path2, err2 := vec.FindPath(obstacles, paths, from, q, scene.CameraPos, scene.CameraPos.Add(scene.CameraSize))
+		path2, err2 := vec.FindPath(obstacles, paths, from, q, limits)
 		if err2 != nil {
 			// Ok... Go as far as we can go.
 			p2, y := obstacles.NearestBlock(from, to)

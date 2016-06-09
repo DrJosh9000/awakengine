@@ -16,8 +16,6 @@ package awakengine
 
 import "github.com/DrJosh9000/vec"
 
-const dialogueZ = 100000
-
 type ButtonSpec struct {
 	Label  string
 	Action func()
@@ -40,16 +38,15 @@ type DialogueDisplay struct {
 	frame    int // frame number for this dialogue.
 	text     *Text
 	complete bool
-	retire   bool
-	visible  bool
 
 	line *DialogueLine
 }
 
 // DialogueFromLine creates a new DialogueDisplay.
 func DialogueFromLine(line *DialogueLine, scene *Scene) *DialogueDisplay {
-	basePos := vec.I2{10, scene.CameraSize.Y - 74}
-	baseSize := vec.I2{scene.CameraSize.X - 20, 64}
+	camSize := scene.View.Size()
+	basePos := vec.I2{10, camSize.Y - 74}
+	baseSize := vec.I2{camSize.X - 20, 64}
 	textPos := vec.I2{10, 10}
 	if line.Avatar != nil {
 		// Provide space for the avatar.
@@ -57,38 +54,39 @@ func DialogueFromLine(line *DialogueLine, scene *Scene) *DialogueDisplay {
 	}
 	bk, _ := game.BubbleKey()
 	d := &DialogueDisplay{
-		line:    line,
-		frame:   0,
-		visible: true,
+		View:  &View{},
+		line:  line,
+		frame: 0,
 		text: &Text{
+			View: &View{},
 			Text: line.Text,
-			Pos:  textPos,
-			Size: vec.I2{scene.CameraSize.X - textPos.X - 35, 0},
 			Font: game.Font(),
 		},
 		bubble: &Bubble{
-			UL:  basePos,
-			DR:  basePos.Add(baseSize),
-			Key: bk,
+			View: &View{},
+			Key:  bk,
 		},
 	}
-	d.bubble.ChildOf = ChildOf{d}
-	d.text.ChildOf = ChildOf{d.bubble}
+	d.View.SetParent(scene.HUD)
+	d.bubble.View.SetParent(d.View)
+	d.bubble.View.SetPosition(basePos)
+	d.bubble.View.SetSize(baseSize)
+	d.bubble.View.SetOffset(bubblePartSize)
+	d.text.View.SetParent(d.bubble.View)
+	d.text.View.SetPosition(textPos)
+	d.text.View.SetSize(vec.I2{camSize.X - textPos.X - 35, 0})
 	d.text.Layout(false) // Rolls out the text for each Advance.
 	p := vec.I2{textPos.X + 15, baseSize.Y - 20}
 	for _, s := range line.Buttons {
 		d.buttons = append(d.buttons, NewButton(
 			s.Label,
 			s.Action,
-			p, p.Add(vec.I2{40, 11}),
-			ChildOf{d.bubble}))
+			vec.Rect{p, p.Add(vec.I2{40, 11})},
+			d.bubble.View))
 		p.X += 65
 	}
 	return d
 }
-
-func (d *DialogueDisplay) Fixed() bool { return true }
-func (d *DialogueDisplay) Z() int      { return dialogueZ }
 
 func (d *DialogueDisplay) AddToScene(s *Scene) {
 	d.bubble.AddToScene(s)
@@ -99,10 +97,10 @@ func (d *DialogueDisplay) AddToScene(s *Scene) {
 	if d.line.Avatar == nil {
 		return
 	}
-	s.AddObject(&struct {
+	s.AddPart(&struct {
 		*SheetFrame
-		ChildOf
-	}{d.line.Avatar, ChildOf{d.bubble}})
+		*View
+	}{d.line.Avatar, d.bubble.View})
 }
 
 func (d *DialogueDisplay) finish() {

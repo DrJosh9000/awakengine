@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"sort"
 
+	"github.com/DrJosh9000/vec"
 	"github.com/hajimehoshi/ebiten"
 )
 
@@ -47,10 +48,10 @@ func (p drawPosition) Dst() (x0, y0, x1, y1 int) {
 }
 
 func (p drawPosition) Src() (x0, y0, x1, y1 int) {
-	x0, y0, x1, y1 = p.Object.Src()
-	o, ok := compositeOffset[p.Object.ImageKey()]
+	x0, y0, x1, y1 = p.Part.Src()
+	o, ok := compositeOffset[p.Part.ImageKey()]
 	if !ok {
-		panic(fmt.Sprintf("unknown image key %q", p.Object.ImageKey()))
+		panic(fmt.Sprintf("unknown image key %q", p.Part.ImageKey()))
 	}
 	return x0 + o.X, y0 + o.Y, x1 + o.X, y1 + o.Y
 }
@@ -87,11 +88,12 @@ func (d drawList) subslice(dst drawList, keep func(Part) bool) drawList {
 // cull removes invisible objects and places visible objects in dst. dst can be d[:0].
 // Visibility is determined by calling Visible() and by testing the Dst rectangle.
 func (d drawList) cull(dst drawList, scene *Scene) drawList {
+
 	return d.subslice(dst, func(p Part) bool {
 		if !p.Visible() {
 			return false
 		}
-		if x0, y0, x1, y1 := p.Dst(); x1 <= 0 || y1 <= 0 || x0 > scene.CameraSize.X || y0 > scene.CameraSize.Y {
+		if r := vec.NewRect(p.Dst()); !r.Overlaps(scene.View.Bounds()) {
 			return false
 		}
 		return true
@@ -100,8 +102,8 @@ func (d drawList) cull(dst drawList, scene *Scene) drawList {
 
 // gc removes retired objects. dst can be d[:0].
 func (d drawList) gc(dst drawList) drawList {
-	return d.subslice(dst, func(o Object) bool {
-		return !o.Retire()
+	return d.subslice(dst, func(p Part) bool {
+		return !p.Retire()
 	})
 }
 

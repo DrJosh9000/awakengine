@@ -58,7 +58,7 @@ func (s *Scene) AddPart(parts ...Part) {
 			dp = drawPosition{p}
 		}
 		if p.Fixed() {
-			s.fixedNeedsSort = true
+			s.fixedSorted = false
 			s.fixed = append(s.fixed, dp)
 		} else {
 			s.loose = append(s.loose, dp)
@@ -77,10 +77,10 @@ func (s *Scene) sortFixedIfNeeded() {
 // CameraFocus sets the World offset such that p should be center of screen, or at least
 // within the bounds of the terrain.
 func (s *Scene) CameraFocus(p vec.I2) {
-	sz := s.Root.Size()
+	sz := s.View.Size()
 	p = p.Sub(sz.Div(2))
 	p = p.ClampLo(vec.I2{})
-	p = p.ClampHi(w.World.Size().Sub(sz))
+	p = p.ClampHi(s.World.Size().Sub(sz))
 	s.World.SetOffset(p.Mul(-1))
 }
 func (s *Scene) Draw(screen *ebiten.Image) error { return s.dispMerged.draw(screen) }

@@ -17,7 +17,6 @@ package awakengine
 import "github.com/DrJosh9000/vec"
 
 type Button struct {
-	*View
 	*Bubble
 	*Text
 	Action func()
@@ -27,7 +26,6 @@ func NewButton(text string, action func(), bounds vec.Rect, parent *View) *Butto
 	sz := bounds.Size()
 	bk, _ := game.BubbleKey()
 	b := &Button{
-		View:   &View{},
 		Action: action,
 		Bubble: &Bubble{
 			View: &View{},
@@ -39,11 +37,10 @@ func NewButton(text string, action func(), bounds vec.Rect, parent *View) *Butto
 			Font: game.Font(),
 		},
 	}
-	b.View.SetParent(parent)
-	b.Bubble.View.SetParent(b.View)
+	b.Bubble.View.SetParent(parent)
 	b.Bubble.View.SetOffset(bubblePartSize)
-	b.Text.View.SetParent(b.Button.View)
-	// Initial size is inset from the bubble by the bubble part size.
+	b.Text.View.SetParent(b.Bubble.View)
+	// Initial size is inset from the bubble by the bubble part size on all sides.
 	sz = sz.Sub(bubblePartSize.Mul(2))
 	b.Text.SetSize(sz)
 	b.Text.Layout(true)
@@ -54,10 +51,7 @@ func NewButton(text string, action func(), bounds vec.Rect, parent *View) *Butto
 
 func (b *Button) Handle(e Event) (handled bool) {
 	k1, k2 := game.BubbleKey()
-	// So bad
-	x0, y0, x1, y1 := ScreenDst(b.Bubble)
-	ul, dr := vec.I2{x0, y0}.Sub(bubblePartSize), vec.I2{x1, y1}.Add(bubblePartSize)
-	if e.ScreenPos.InRect(ul, dr) {
+	if b.Bubble.View.Bounds().Contains(e.ScreenPos) {
 		switch {
 		case e.MouseDown:
 			b.Text.Invert = true

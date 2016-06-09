@@ -30,28 +30,28 @@ type CharInfo struct {
 }
 
 type oneChar struct {
-	text    *Text
+	*Text
 	pos     vec.I2
 	c       byte
 	visible bool
 }
 
-func (s *oneChar) ImageKey() string { return s.text.Font.ImageKey(s.text.Invert) }
+func (s *oneChar) ImageKey() string { return s.Text.Font.ImageKey(s.Text.Invert) }
 
 func (s *oneChar) Src() (x0, y0, x1, y1 int) {
-	m := s.text.Metrics()
+	m := s.Text.Metrics()
 	ci := m[s.c]
 	return ci.X, ci.Y, ci.X + ci.Width, ci.Y + ci.Height
 }
 
 func (s *oneChar) Dst() (x0, y0, x1, y1 int) {
-	m := s.text.Metrics()
+	m := s.Text.Metrics()
 	ci := m[s.c]
-	x0, y0 = s.pos.X+ci.XOffset, s.pos.Y+ci.YOffset+s.text.YOffset()
+	x0, y0 = s.pos.X+ci.XOffset, s.pos.Y+ci.YOffset+s.Text.YOffset()
 	return x0, y0, x0 + ci.Width, y0 + ci.Height
 }
 
-func (s *oneChar) Visible() bool { return s.visible && s.text.Visible() }
+func (s *oneChar) Visible() bool { return s.visible && s.Text.View.Visible() }
 
 type Text struct {
 	*View
@@ -64,7 +64,7 @@ type Text struct {
 
 func (t *Text) AddToScene(s *Scene) {
 	for i := range t.chars {
-		s.AddObject(&t.chars[i])
+		s.AddPart(&t.chars[i])
 	}
 }
 
@@ -122,8 +122,7 @@ func (t *Text) Layout(visible bool) {
 			continue
 		}
 		chars = append(chars, oneChar{
-			text:    t,
-			ChildOf: ChildOf{t},
+			Text:    t,
 			pos:     vec.I2{x, y},
 			c:       c,
 			visible: visible,

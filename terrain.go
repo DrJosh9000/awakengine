@@ -49,13 +49,14 @@ func ImageAsMap(imgkey string) ([]uint8, vec.I2, error) {
 }
 
 // loadTerrain loads from a paletted image file.
-func loadTerrain(level *Level, par ChildOf) (*Terrain, error) {
+func loadTerrain(level *Level, parent *View) (*Terrain, error) {
 	bs := vec.I2{level.TileSize, level.TileSize + level.BlockHeight}
 	t := &Terrain{
-		ChildOf:   par,
+		View:      &View{},
 		Level:     level,
 		blockSize: bs,
 	}
+	t.View.SetParent(parent)
 	if level.BlocksetKey != "" {
 		t.blocksetSize = sizes[level.BlocksetKey].EDiv(bs)
 	}
@@ -71,7 +72,7 @@ func (t *Terrain) AddToScene(s *Scene) {
 		if t.TileMap[i] == 0 {
 			continue
 		}
-		s.AddObject(&tileObject{
+		s.AddPart(&tilePart{
 			Terrain: t,
 			i:       i,
 			d:       vec.Div(i, t.MapSize.X).Mul(t.TileSize),
@@ -82,7 +83,7 @@ func (t *Terrain) AddToScene(s *Scene) {
 			continue
 		}
 		d := vec.Div(i, t.MapSize.X).Mul(t.TileSize)
-		s.AddObject(&blockObject{
+		s.AddPart(&blockPart{
 			Terrain: t,
 			i:       i,
 			d:       d.Sub(vec.I2{0, t.BlockHeight}),
@@ -95,49 +96,49 @@ func (t *Terrain) Fixed() bool   { return true }
 func (t *Terrain) Retire() bool  { return false }
 func (t *Terrain) Visible() bool { return true }
 
-type tileObject struct {
+type tilePart struct {
 	*Terrain
 	i int // Keep an index in case the map updates dynamically!
 	d vec.I2
 }
 
-func (t *tileObject) ImageKey() string { return t.TilesetKey }
+func (t *tilePart) ImageKey() string { return t.TilesetKey }
 
-func (t *tileObject) Dst() (x0, y0, x1, y1 int) {
+func (t *tilePart) Dst() (x0, y0, x1, y1 int) {
 	x0, y0 = t.d.C()
 	x1, y1 = x0+t.TileSize, y0+t.TileSize
 	return
 }
 
-func (t *tileObject) Src() (x0, y0, x1, y1 int) {
+func (t *tilePart) Src() (x0, y0, x1, y1 int) {
 	x0, y0 = vec.Div(int(t.TileMap[t.i]), t.tilesetSize.X).Mul(t.TileSize).C()
 	x1, y1 = x0+t.TileSize, y0+t.TileSize
 	return
 }
 
-func (t *tileObject) Z() int { return -100 } // hax
+func (t *tilePart) Z() int { return -100 } // hax
 
-type blockObject struct {
+type blockPart struct {
 	*Terrain
 	d    vec.I2
 	i, z int
 }
 
-func (b *blockObject) ImageKey() string { return b.BlocksetKey }
+func (b *blockPart) ImageKey() string { return b.BlocksetKey }
 
-func (b *blockObject) Dst() (x0, y0, x1, y1 int) {
+func (b *blockPart) Dst() (x0, y0, x1, y1 int) {
 	x0, y0 = b.d.C()
 	x1, y1 = b.d.Add(b.blockSize).C()
 	return
 }
 
-func (b *blockObject) Src() (x0, y0, x1, y1 int) {
+func (b *blockPart) Src() (x0, y0, x1, y1 int) {
 	x0, y0 = vec.Div(int(b.BlockMap[b.i]), b.blocksetSize.X).EMul(b.blockSize).C()
 	x1, y1 = x0+b.blockSize.X, y0+b.blockSize.Y
 	return
 }
 
-func (b *blockObject) Z() int { return b.z }
+func (b *blockPart) Z() int { return b.z }
 
 // Terrain is the base layer of the game world.
 type Terrain struct {
