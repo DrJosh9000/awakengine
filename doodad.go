@@ -23,7 +23,7 @@ type BaseDoodad struct {
 	Offset vec.I2
 	UL, DR vec.I2 // base obstacle box (frame relative)
 }
-
+ 
 // Doodad is an instance of a BaseDoodad in a specific location.
 type Doodad struct {
 	P vec.I2

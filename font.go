@@ -34,6 +34,7 @@ type oneChar struct {
 	pos     vec.I2
 	c       byte
 	visible bool
+	retire  bool
 }
 
 func (s *oneChar) ImageKey() string { return s.Text.Font.ImageKey(s.Text.Invert) }
@@ -52,6 +53,7 @@ func (s *oneChar) Dst() (x0, y0, x1, y1 int) {
 }
 
 func (s *oneChar) Visible() bool { return s.visible && s.Text.View.Visible() }
+func (s *oneChar) Retire() bool  { return s.retire || s.Text.View.Retire() }
 
 type Text struct {
 	*View
@@ -60,9 +62,14 @@ type Text struct {
 	Invert bool
 	chars  []oneChar
 	next   int
+	added  bool
 }
 
 func (t *Text) AddToScene(s *Scene) {
+	if t.added {
+		return
+	}
+	t.added = true
 	for i := range t.chars {
 		s.AddPart(&t.chars[i])
 	}
@@ -81,9 +88,18 @@ func (t *Text) Advance() error {
 // the size to exactly contain the text. Text will be wrapped to the
 // existing Size.X as a width.
 func (t *Text) Layout(visible bool) {
+	t.added = false
+	for i := range t.chars {
+		t.chars[i].retire = true
+	}
+	// Reset things
+	t.chars = t.chars[:0]
+	t.next = 0
+
+	// Compute new characters.
 	width := t.View.Size().X
 	maxW := 0
-	chars := make([]oneChar, 0, len(t.Text))
+	//chars := make([]oneChar, 0, len(t.Text))
 	cm := t.Metrics()
 	x, y := 0, 0
 	wordStartC, wordStartI := 0, 0 // chars index, Text index
@@ -100,7 +116,7 @@ func (t *Text) Layout(visible bool) {
 		for i, j := wordStartC, wordStartI; j < end; i, j = i+1, j+1 {
 			c := t.Text[j]
 			ci := cm[c]
-			chars[i].pos = vec.I2{x, y}
+			t.chars[i].pos = vec.I2{x, y}
 			x += ci.XAdvance
 		}
 	}
@@ -108,7 +124,7 @@ func (t *Text) Layout(visible bool) {
 		if t.Text[i] == '\n' {
 			x = 0
 			y += t.LineHeight()
-			wordStartC = len(chars)
+			wordStartC = len(t.chars)
 			wordStartI = i + 1
 			continue
 		}
@@ -116,12 +132,12 @@ func (t *Text) Layout(visible bool) {
 		ci := cm[c]
 		if t.Text[i] == ' ' {
 			wrapIt(i)
-			wordStartC = len(chars)
+			wordStartC = len(t.chars)
 			wordStartI = i + 1
 			x += ci.XAdvance
 			continue
 		}
-		chars = append(chars, oneChar{
+		t.chars = append(t.chars, oneChar{
 			Text:    t,
 			pos:     vec.I2{x, y},
 			c:       c,
@@ -133,6 +149,6 @@ func (t *Text) Layout(visible bool) {
 	if x > maxW {
 		maxW = x
 	}
-	t.chars = chars
+	//t.chars = chars
 	t.View.SetSize(vec.I2{maxW, y + t.LineHeight()})
 }

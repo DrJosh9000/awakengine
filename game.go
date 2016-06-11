@@ -252,9 +252,24 @@ func drawDebug(screen *ebiten.Image) error {
 
 func playNextDialogue() {
 	if len(dialogueStack) == 0 {
+		if dialogue != nil {
+			if config.Debug {
+				log.Printf("disposing a dialogue")
+			}
+			dialogue.Dispose()
+		}
+		dialogue = nil
 		return
 	}
-	dialogue = NewDialogueDisplay(scene)
+	if dialogue == nil {
+		if config.Debug {
+			log.Printf("creating a dialogue")
+		}
+		dialogue = NewDialogueDisplay(scene)
+	}
+	if config.Debug {
+		log.Printf("laying out a dialogue")
+	}
 	dialogue.Layout(&dialogueStack[0])
 	dialogue.AddToScene(scene)
 }
@@ -281,7 +296,6 @@ trigLoop:
 			trig.Fire(modelFrame)
 		}
 		dialogueStack = trig.Dialogues
-		dialogue = nil
 		player.GoIdle()
 		playNextDialogue()
 		trig.Fired = true
@@ -338,14 +352,11 @@ func modelUpdate() {
 		clientUpdate(e)
 	} else if dialogue.Handle(e) {
 		// Play
-		if dialogue.Retire() {
-			dialogueStack = dialogueStack[1:]
-			dialogue = nil
-		}
-		playNextDialogue()
+		dialogueStack = dialogueStack[1:]
 		if len(dialogueStack) == 0 {
 			evaluateTriggers()
 		}
+		playNextDialogue()
 	}
 
 	scene.Update()

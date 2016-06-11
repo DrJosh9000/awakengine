@@ -20,6 +20,7 @@ type Button struct {
 	*Bubble
 	*Text
 	Action func()
+	added  bool
 }
 
 func NewButton(text string, action func(), bounds vec.Rect, parent *View) *Button {
@@ -50,6 +51,12 @@ func NewButton(text string, action func(), bounds vec.Rect, parent *View) *Butto
 	return b
 }
 
+func (b *Button) Dispose() {
+	b.Bubble.Dispose()
+	b.Bubble = nil
+	b.Text = nil
+}
+
 func (b *Button) Handle(e Event) (handled bool) {
 	k1, k2 := game.BubbleKey()
 	if b.Bubble.View.Bounds().Contains(e.ScreenPos) {
@@ -71,6 +78,10 @@ func (b *Button) Handle(e Event) (handled bool) {
 }
 
 func (b *Button) AddToScene(s *Scene) {
+	if b.added {
+		return
+	}
+	b.added = true
 	b.Bubble.AddToScene(s)
 	b.Text.AddToScene(s)
 }

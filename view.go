@@ -35,6 +35,18 @@ type View struct {
 	cachedZ         int
 }
 
+// Dispose retires this view and all subviews, and disconnects
+// everything.
+func (v *View) Dispose() {
+	for _, c := range v.children {
+		c.Dispose()
+	}
+	v.retire = true
+	v.cachedRetire = true
+	v.parent = nil
+	v.children = nil
+}
+
 func (v *View) invalidate() {
 	if !v.valid {
 		// Children should be invalid. If a child view is valid,
@@ -154,6 +166,7 @@ func (v *View) removeFromParent() {
 			panic("my idea of which child I am is wrong")
 		}
 		last := len(c) - 1
+		c[last].childIndex = v.childIndex
 		c[v.childIndex], c[last] = c[last], c[v.childIndex]
 		v.parent.children = c[:last]
 	}

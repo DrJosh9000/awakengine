@@ -58,9 +58,6 @@ func (p drawPosition) Src() (x0, y0, x1, y1 int) {
 	return x0 + o.X, y0 + o.Y, x1 + o.X, y1 + o.Y
 }
 
-//func (p drawPosition) Container() *View { return nil } // Once positioned, always in screen coordinates.
-//func (p drawPosition) ImageKey() string { return "" }  // Once positioned, always in texture atlas coordinates.
-
 // drawList is a Z-sortable list of objects in texture atlas/screen coordinates.
 type drawList []drawPosition
 

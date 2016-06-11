@@ -82,7 +82,19 @@ func NewDialogueDisplay(scene *Scene) *DialogueDisplay {
 	return d
 }
 
+// Layout rearranges views
 func (d *DialogueDisplay) Layout(line *DialogueLine) {
+	// Dispose of any old buttons first.
+	for _, b := range d.buttons {
+		b.Dispose()
+	}
+	d.buttons = nil
+
+	// Reset things...
+	d.complete = false
+	d.frame = 0
+
+	// Refresh properties from the line.
 	d.avatar.SheetFrame = line.Avatar
 	d.frame = 0
 	d.line = line
@@ -99,26 +111,27 @@ func (d *DialogueDisplay) Layout(line *DialogueLine) {
 	d.avatar.SetVisible(line.Avatar != nil)
 
 	d.text.SetPositionAndSize(textPos, vec.I2{size.X - textPos.X - 15, 0})
-	d.text.Layout(false) // Rolls out the text for each Advance.
+	d.text.Layout(line.Slowness < 0)
 
 	p := vec.I2{textPos.X + 15, size.Y - 20}
 	for _, s := range line.Buttons {
-		d.buttons = append(d.buttons, NewButton(
+		btn := NewButton(
 			s.Label,
 			s.Action,
 			vec.Rect{p, p.Add(vec.I2{40, 11})},
-			d.bubble.View))
+			d.bubble.View)
+		d.buttons = append(d.buttons, btn)
 		p.X += 65
 	}
 }
 
-func (d *DialogueDisplay) AddToScene(s *Scene) {
-	d.bubble.AddToScene(s)
-	d.text.AddToScene(s)
+func (d *DialogueDisplay) AddToScene(scene *Scene) {
+	d.bubble.AddToScene(scene)
+	d.text.AddToScene(scene)
 	for _, b := range d.buttons {
-		b.AddToScene(s)
+		b.AddToScene(scene)
 	}
-	s.AddPart(d.avatar)
+	scene.AddPart(d.avatar)
 }
 
 func (d *DialogueDisplay) finish() {
@@ -133,17 +146,17 @@ func (d *DialogueDisplay) finish() {
 func (d *DialogueDisplay) Handle(event Event) bool {
 	for _, b := range d.buttons {
 		if b.Handle(event) {
-			d.SetRetire(true)
+			// log.Printf("dialogue: button handled event")
 			return true
 		}
 	}
 	if d.complete && d.line.AutoNext {
-		d.SetRetire(true)
+		// log.Printf("dialogue: complete and autonext")
 		return true
 	}
 	if event.Type == EventMouseUp {
 		if d.complete && len(d.buttons) == 0 {
-			d.SetRetire(true)
+			// log.Printf("dialogue: clicked, complete, and no buttons")
 			return true
 		}
 		if !d.line.AutoNext {
