@@ -14,7 +14,11 @@
 
 package awakengine
 
-import "github.com/DrJosh9000/vec"
+import (
+	"fmt"
+
+	"github.com/DrJosh9000/vec"
+)
 
 // View represents a rectangular region in a view hierarchy. It caches its
 // real position information because why not.
@@ -38,13 +42,12 @@ type View struct {
 // Dispose retires this view and all subviews, and disconnects
 // everything.
 func (v *View) Dispose() {
-	for _, c := range v.children {
-		c.Dispose()
+	for len(v.children) > 0 {
+		v.children[0].Dispose()
 	}
 	v.retire = true
 	v.cachedRetire = true
-	v.parent = nil
-	v.children = nil
+	v.SetParent(nil)
 }
 
 func (v *View) invalidate() {
@@ -160,6 +163,9 @@ func (v *View) removeFromParent() {
 	case 0:
 		panic("parent should have children but doesn't")
 	case 1:
+		if v.childIndex != 0 || c[0] != v {
+			panic("my idea of which child I am is wrong")
+		}
 		v.parent.children = nil
 	default:
 		if c[v.childIndex] != v {
@@ -167,7 +173,7 @@ func (v *View) removeFromParent() {
 		}
 		last := len(c) - 1
 		c[last].childIndex = v.childIndex
-		c[v.childIndex], c[last] = c[last], c[v.childIndex]
+		c[v.childIndex] = c[last]
 		v.parent.children = c[:last]
 	}
 }
