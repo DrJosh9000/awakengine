@@ -81,7 +81,7 @@ func (s *Scene) CameraFocus(p vec.I2) {
 	p = p.Sub(sz.Div(2))
 	p = p.ClampLo(vec.I2{})
 	p = p.ClampHi(s.World.Size().Sub(sz))
-	s.World.SetOffset(p.Mul(-1))
+	s.World.SetPosition(p.Mul(-1))
 }
 func (s *Scene) Draw(screen *ebiten.Image) error { return s.dispMerged.draw(screen) }
 

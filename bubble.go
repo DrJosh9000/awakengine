@@ -18,7 +18,7 @@ import "github.com/DrJosh9000/vec"
 
 var bubblePartSize = vec.I2{5, 5}
 
-// Bubble renders a bubble at any size larger than (3*bubblePartSize)^2.
+// Bubble renders a bubble at any size larger than bubblePartSize.Mul(3)
 type Bubble struct {
 	*View
 	Key string
@@ -47,24 +47,24 @@ func (b bubblePart) Src() (x0, y0, x1, y1 int) {
 
 func (b bubblePart) Dst() (x0, y0, x1, y1 int) {
 	j, k := vec.Div(b.i, 3).C()
-	x0, y0, x1, y1 = b.View.Bounds().C()
+	x0, y0, x1, y1 = b.View.LogicalBounds().C()
 	switch j {
 	case 0:
-		x1 += bubblePartSize.X
+		x1 = x0 + bubblePartSize.X
 	case 1:
 		x0 += bubblePartSize.X
 		x1 -= bubblePartSize.X
 	case 2:
-		x0 -= bubblePartSize.X
+		x0 = x1 - bubblePartSize.X
 	}
 	switch k {
 	case 0:
-		y1 += bubblePartSize.X
+		y1 = y0 + bubblePartSize.X
 	case 1:
 		y0 += bubblePartSize.X
 		y1 -= bubblePartSize.X
 	case 2:
-		y0 -= bubblePartSize.X
+		y0 = y1 - bubblePartSize.X
 	}
 	return
 }

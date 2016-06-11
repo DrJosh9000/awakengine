@@ -87,7 +87,7 @@ type Handler interface {
 	Handle(e Event)
 }
 
-// Unit can be told to update and provide information for drawing.
+// Unit can be given orders.
 // Examples of units include the player character, NPCs, etc. Or it
 // could be a unit in an RTS.
 type Unit interface {
@@ -101,7 +101,7 @@ type Unit interface {
 	// implied as the first point.
 	Path() []vec.I2
 
-	Pos() vec.I2
+	//Pos() vec.I2
 }
 
 // Level describes things needed for a base terrain/level.
@@ -189,7 +189,7 @@ func load(g Game) error {
 		}
 	}
 
-	scene.CameraFocus(player.Pos())
+	//scene.CameraFocus(player.Pos())
 	terrain.AddToScene(scene)
 	scene.sortFixedIfNeeded()
 	return nil
@@ -254,7 +254,8 @@ func playNextDialogue() {
 	if len(dialogueStack) == 0 {
 		return
 	}
-	dialogue = DialogueFromLine(&dialogueStack[0], scene)
+	dialogue = NewDialogueDisplay(scene)
+	dialogue.Layout(&dialogueStack[0])
 	dialogue.AddToScene(scene)
 }
 
@@ -294,7 +295,7 @@ func clientUpdate(e Event) {
 		return
 	}
 	for _, o := range scene.loose {
-		if u, ok := o.Part.(Sprite); ok {
+		if u, ok := o.Part.(*Sprite); ok {
 			u.Update(modelFrame)
 		}
 	}
@@ -317,7 +318,7 @@ func modelUpdate() {
 	e := Event{
 		Time:      modelFrame,
 		ScreenPos: lastCursorPos,
-		ScenePos:  lastCursorPos.Add(scene.World.Offset()),
+		WorldPos:  lastCursorPos.Sub(scene.World.Position()),
 		MouseDown: md,
 	}
 	switch {
@@ -370,7 +371,7 @@ func update(screen *ebiten.Image) error {
 
 // Navigate attempts to construct a path within the terrain.
 func Navigate(from, to vec.I2) []vec.I2 {
-	limits := scene.View.Bounds().Translate(scene.World.Offset())
+	limits := scene.View.Bounds().Translate(scene.World.Position().Mul(-1))
 	path, err := vec.FindPath(obstacles, paths, from, to, limits)
 	if err != nil {
 		// Go near to the cursor position.

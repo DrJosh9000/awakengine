@@ -26,11 +26,11 @@ import (
 type Part interface {
 	Container() *View
 	ImageKey() string
-	Dst() (x0, y0, x1, y1 int) // relative to the containing view.
 	Src() (x0, y0, x1, y1 int) // relative to the image referred to by ImageKey()
+	Dst() (x0, y0, x1, y1 int) // relative to the containing view.
 	Fixed() bool
-	Retire() bool  // true if the quad will never draw again.
-	Visible() bool // true if the object is visible if we are looking at it.
+	Retire() bool  // true if the part will never draw again.
+	Visible() bool // true if the part is visible.
 	Z() int
 }
 
@@ -40,10 +40,12 @@ type drawPosition struct{ Part }
 
 func (p drawPosition) Dst() (x0, y0, x1, y1 int) {
 	x0, y0, x1, y1 = p.Part.Dst()
-	if p.Container() == nil {
+	c := p.Part.Container()
+	if c == nil {
+		fmt.Printf("part missing container (%T)\n", p.Part)
 		return
 	}
-	o := p.Container().Offset()
+	o := c.Position()
 	return x0 + o.X, y0 + o.Y, x1 + o.X, y1 + o.Y
 }
 
@@ -56,8 +58,8 @@ func (p drawPosition) Src() (x0, y0, x1, y1 int) {
 	return x0 + o.X, y0 + o.Y, x1 + o.X, y1 + o.Y
 }
 
-func (p drawPosition) Container() *View { return nil } // Once positioned, always in screen coordinates.
-func (p drawPosition) ImageKey() string { return "" }  // Once positioned, always in texture atlas coordinates.
+//func (p drawPosition) Container() *View { return nil } // Once positioned, always in screen coordinates.
+//func (p drawPosition) ImageKey() string { return "" }  // Once positioned, always in texture atlas coordinates.
 
 // drawList is a Z-sortable list of objects in texture atlas/screen coordinates.
 type drawList []drawPosition
@@ -67,7 +69,7 @@ func (d drawList) Len() int           { return len(d) }
 func (d drawList) Swap(i, j int)      { d[i], d[j] = d[j], d[i] }
 func (d drawList) Less(i, j int) bool { return d[i].Z() < d[j].Z() }
 
-// Convenience function.
+// Sort is a convenience for sorting a drawList by Z.
 func (d drawList) Sort() { sort.Sort(d) }
 
 // Implementing ebiten.ImageParts

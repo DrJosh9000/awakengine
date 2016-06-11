@@ -25,11 +25,11 @@ func TestViewInvalidation(t *testing.T) {
 	if !v.valid {
 		t.Errorf("After Bounds, got valid value %t, want true", v.valid)
 	}
-	v.SetOffset(vec.I2{})
+	v.SetPosition(vec.I2{})
 	if v.valid {
 		t.Errorf("After SetOffset, got valid value %t, want false", v.valid)
 	}
-	v.Offset()
+	v.Position()
 	if !v.valid {
 		t.Errorf("After Offset, got valid value %t, want true", v.valid)
 	}
@@ -76,5 +76,56 @@ func TestSetParent(t *testing.T) {
 	}
 	if got, want := child2.children, []*View{child1}; !reflect.DeepEqual(got, want) {
 		t.Errorf("Got parent.children %v, want %v", got, want)
+	}
+}
+
+func TestSetVisible(t *testing.T) {
+	parent := &View{}
+	child1 := &View{}
+	child2 := &View{}
+	child1.SetParent(parent)
+	child2.SetParent(parent)
+	grandchild1 := &View{}
+	grandchild1.SetParent(child1)
+
+	if got, want := parent.Visible(), true; got != want {
+		t.Errorf("Got parent.Visible %t, want %t", got, want)
+	}
+	if got, want := child1.Visible(), true; got != want {
+		t.Errorf("Got child1.Visible %t, want %t", got, want)
+	}
+	if got, want := child2.Visible(), true; got != want {
+		t.Errorf("Got child2.Visible %t, want %t", got, want)
+	}
+	if got, want := grandchild1.Visible(), true; got != want {
+		t.Errorf("Got grandchild1.Visible %t, want %t", got, want)
+	}
+
+	child1.SetVisible(false)
+	if got, want := parent.Visible(), true; got != want {
+		t.Errorf("Got parent.Visible %t, want %t", got, want)
+	}
+	if got, want := child1.Visible(), false; got != want {
+		t.Errorf("Got child1.Visible %t, want %t", got, want)
+	}
+	if got, want := child2.Visible(), true; got != want {
+		t.Errorf("Got child2.Visible %t, want %t", got, want)
+	}
+	if got, want := grandchild1.Visible(), false; got != want {
+		t.Errorf("Got grandchild1.Visible %t, want %t", got, want)
+	}
+
+	grandchild1.SetVisible(true)
+	if got, want := parent.Visible(), true; got != want {
+		t.Errorf("Got parent.Visible %t, want %t", got, want)
+	}
+	if got, want := child1.Visible(), false; got != want {
+		t.Errorf("Got child1.Visible %t, want %t", got, want)
+	}
+	if got, want := child2.Visible(), true; got != want {
+		t.Errorf("Got child2.Visible %t, want %t", got, want)
+	}
+	if got, want := grandchild1.Visible(), false; got != want { // No change; child1 is invisible
+		t.Errorf("Got grandchild1.Visible %t, want %t", got, want)
 	}
 }

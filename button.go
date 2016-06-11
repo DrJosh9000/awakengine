@@ -37,15 +37,16 @@ func NewButton(text string, action func(), bounds vec.Rect, parent *View) *Butto
 			Font: game.Font(),
 		},
 	}
-	b.Bubble.View.SetParent(parent)
-	b.Bubble.View.SetOffset(bubblePartSize)
-	b.Text.View.SetParent(b.Bubble.View)
+	b.Bubble.SetParent(parent)
+	b.Bubble.SetZ(1)
+	b.Text.SetParent(b.Bubble.View)
+	b.Text.SetZ(1)
 	// Initial size is inset from the bubble by the bubble part size on all sides.
 	sz = sz.Sub(bubblePartSize.Mul(2))
 	b.Text.SetSize(sz)
 	b.Text.Layout(true)
-	// Text should now have the minimal size. Centre the text within button.
-	b.Text.SetPosition(sz.Sub(b.Text.View.Size()).Div(2))
+	// Text should now have the minimal size. Centre the text within button, but offset slightly.
+	b.Text.SetPosition(sz.Sub(b.Text.View.Size()).Div(2).Sub(vec.I2{1, 1}))
 	return b
 }
 

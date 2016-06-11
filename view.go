@@ -20,7 +20,6 @@ import "github.com/DrJosh9000/vec"
 // real position information because why not.
 type View struct {
 	bounds    vec.Rect // Relative to parent hierarchy
-	offset    vec.I2   // Relative to bounds
 	z         int      // Relative to parent
 	invisible bool     // So we can avoid explicitly setting to visible.
 	retire    bool     // So we can avoid explicitly setting to not-retired.
@@ -31,7 +30,6 @@ type View struct {
 
 	valid           bool
 	cachedBounds    vec.Rect
-	cachedOffset    vec.I2
 	cachedRetire    bool
 	cachedInvisible bool
 	cachedZ         int
@@ -39,8 +37,8 @@ type View struct {
 
 func (v *View) invalidate() {
 	if !v.valid {
-		// Children should be invalid, because if they are valid,
-		// they will have forced us to become valid doing so.
+		// Children should be invalid. If a child view is valid,
+		// they will have forced us to become valid in doing so.
 		return
 	}
 	v.valid = false
@@ -56,21 +54,18 @@ func (v *View) compute() {
 	v.valid = true
 	if v.parent == nil {
 		v.cachedBounds = v.bounds
-		v.cachedOffset = v.bounds.UL.Add(v.offset)
 		v.cachedRetire = v.retire
 		v.cachedInvisible = v.invisible
 		v.cachedZ = v.z
 		return
 	}
-	v.cachedBounds = v.bounds.Translate(v.parent.Offset())
-	v.cachedOffset = v.cachedBounds.UL.Add(v.offset)
+	v.cachedBounds = v.bounds.Translate(v.parent.Position())
 	v.cachedRetire = v.retire || v.parent.Retire()
 	v.cachedInvisible = v.invisible || !v.parent.Visible()
 	v.cachedZ = v.z + v.parent.Z()
 }
 
 func (v *View) LogicalBounds() vec.Rect { return v.bounds }
-func (v *View) LogicalOffset() vec.I2   { return v.offset }
 func (v *View) LogicalZ() int           { return v.z }
 func (v *View) Size() vec.I2            { return v.bounds.Size() }
 
@@ -98,9 +93,10 @@ func (v *View) Bounds() vec.Rect {
 	return v.cachedBounds
 }
 
-func (v *View) Offset() vec.I2 {
+// Position is always the view's top-left corner.
+func (v *View) Position() vec.I2 {
 	v.compute()
-	return v.cachedOffset
+	return v.cachedBounds.UL
 }
 
 func (v *View) SetBounds(bounds vec.Rect) {
@@ -121,8 +117,15 @@ func (v *View) SetSize(sz vec.I2) {
 	v.bounds = v.bounds.Resize(sz)
 }
 
-func (v *View) SetOffset(offset vec.I2) {
-	v.offset = offset
+// SetPosition moves the view to a new position and changes its size.
+// It invalidates.
+func (v *View) SetPositionAndSize(pos, size vec.I2) {
+	v.bounds = vec.Rect{UL: pos, DR: pos.Add(size)}
+	v.invalidate()
+}
+
+func (v *View) SetRetire(ret bool) {
+	v.retire = ret
 	v.invalidate()
 }
 

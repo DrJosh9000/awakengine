@@ -16,18 +16,35 @@ package awakengine
 
 import "github.com/DrJosh9000/vec"
 
-type Sheet struct {
-	Columns   int
-	Key       string
-	Frames    int
-	FrameSize vec.I2
+// FrameInfo describes how to play a frame in an animation.
+type FrameInfo struct {
+	Duration int    // in model frames. -1 means infinite, 0 means 1
+	Next     int    // next model frame index, no special meaning for 0...
+	Offset   vec.I2 // subtract from position to get top-left of destination
 }
 
-func (s *Sheet) ImageKey() string { return s.Key }
+// BasicFrameInfos is a convenience for making FrameInfos that all have the same
+// offset and duration, and all have the next frame as the next frame.
+func BasicFrameInfos(n, duration int, offset vec.I2) []FrameInfo {
+	fi := make([]FrameInfo, n)
+	for i := range fi {
+		fi[i].Duration = duration
+		fi[i].Next = (i + 1) % n
+		fi[i].Offset = offset
+	}
+	return fi
+}
+
+type Sheet struct {
+	Columns    int
+	Key        string
+	FrameInfos []FrameInfo
+	FrameSize  vec.I2
+}
 
 // Src returns the source rectangle for frame number f.
 func (s *Sheet) FrameSrc(f int) (x0, y0, x1, y1 int) {
-	f %= s.Frames
+	f %= len(s.FrameInfos)
 	if s.Columns == 0 {
 		x0, y0 = vec.NewI2(f, 0).EMul(s.FrameSize).C()
 		x1, y1 = x0+s.FrameSize.X, y0+s.FrameSize.Y
@@ -38,16 +55,20 @@ func (s *Sheet) FrameSrc(f int) (x0, y0, x1, y1 int) {
 	return
 }
 
-// Dst returns the destination rectangle with the top-left corner at 0, 0.
-func (s *Sheet) Dst() (x0, y0, x1, y1 int) {
-	x1, y1 = s.FrameSize.C()
-	return
-}
-
 // SheetFrame lets you specify a frame in addition to a sheet.
 type SheetFrame struct {
 	*Sheet
-	Index int
+	FrameNo int
 }
 
-func (s *SheetFrame) Src() (x0, y0, x1, y1 int) { return s.FrameSrc(s.Index) }
+func (s *SheetFrame) ImageKey() string          { return s.Sheet.Key }
+func (s *SheetFrame) Src() (x0, y0, x1, y1 int) { return s.Sheet.FrameSrc(s.FrameNo) }
+
+// ImageView displays one frame of a sheet filling a view.
+type ImageView struct {
+	*View
+	*SheetFrame
+}
+
+func (v *ImageView) Src() (x0, y0, x1, y1 int) { return v.SheetFrame.Src() }
+func (v *ImageView) Dst() (x0, y0, x1, y1 int) { return v.View.LogicalBounds().C() }

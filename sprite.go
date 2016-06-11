@@ -16,66 +16,65 @@ package awakengine
 
 import "github.com/DrJosh9000/vec"
 
-type StaticOffset vec.I2
-
-func (s StaticOffset) Offset(int) vec.I2 { return vec.I2(s) }
-
-type StaticPlayback int
-
-func (s StaticPlayback) Frame() int { return int(s) }
-
-// Playback describes playing an animation according to different frame durations and looping.
-type Playback struct {
-	SF, DF        int
-	FrameDuration []int // model frames to spend in each animation frame, assumes 1 for each frame otherwise
-	LoopTo        int   // return to this frame number when complete
+type SpriteDelegate interface {
+	// Instancey things
+	Fixed(s *Sprite) bool
+	SpriteSheet(s *Sprite) *Sheet    // Which sheet we're currently using
+	Update(s *Sprite, modelTime int) // Do model updates
+	Z(s *Sprite) int                 // Given our position, what's the right Z?
 }
 
-func (p *Playback) Reset()     { p.SF, p.DF = 0, -1 }
-func (p *Playback) Frame() int { return p.SF }
-func (p *Playback) Update(int) {
-	p.DF++
-	if p.DF < p.FrameDuration[p.SF] {
+// Sprite concerns itself with displaying the right frame of an animation at the right time,
+// at the right position, and at the right Z order.
+type Sprite struct {
+	*View        // Container for drawPosition; can be a new view.
+	Pos   vec.F2 // Position
+	f     int    // current frame of sprite sheet
+	fd    int    // duration of current frame
+	SpriteDelegate
+}
+
+func (s *Sprite) ResetAnim() { s.f, s.fd = 0, -1 }
+func (s *Sprite) AdvanceAnim() {
+	sheet := s.SpriteSheet(s)
+	infos := sheet.FrameInfos
+	if s.f < 0 || s.f >= len(infos) {
+		s.ResetAnim()
+	}
+	s.fd++
+	dur := infos[s.f].Duration
+	if dur < 0 || s.fd < dur { // duration is infinite, or we aren't there yet.
 		return
 	}
-	p.DF = 0
-	p.SF++
-	if p.SF >= len(p.FrameDuration) {
-		p.SF = p.LoopTo
+	s.fd = 0
+	s.f = infos[s.f].Next
+}
+
+func (s *Sprite) Update(t int) {
+	s.AdvanceAnim()
+	s.SpriteDelegate.Update(s, t)
+}
+
+func (s *Sprite) Container() *View { return s.View }
+func (s *Sprite) ImageKey() string { return s.SpriteSheet(s).Key }
+
+func (s *Sprite) Src() (x0, y0, x1, y1 int) {
+	return s.SpriteSheet(s).FrameSrc(s.f)
+}
+
+func (s *Sprite) Dst() (x0, y0, x1, y1 int) {
+	sheet := s.SpriteSheet(s)
+	if s.f >= len(sheet.FrameInfos) {
+		s.f = 0
 	}
+	info := &sheet.FrameInfos[s.f]
+	ul := s.Pos.I2().Sub(info.Offset)
+	x0, y0 = ul.C()
+	x1, y1 = ul.Add(s.SpriteSheet(s).FrameSize).C()
+	return
 }
 
-type Sprite interface {
-	// Templatey things.
-	ImageKey() string
-	Dst() (x0, y0, x1, y1 int)
-	FrameSrc(frame int) (x0, y0, x1, y1 int)
-	Offset(frame int) vec.I2
-
-	// Instancey things.
-	Frame() int
-	Pos() vec.I2
-	Update(t int)
-}
-
-type SpriteObject struct {
-	Sprite
-}
-
-func (s SpriteObject) Dst() (x0, y0, x1, y1 int) {
-	x0, y0, x1, y1 = s.Sprite.Dst()
-	p := s.Pos().Sub(s.Offset(s.Frame()))
-	return x0 + p.X, y0 + p.Y, x1 + p.X, y1 + p.Y
-}
-func (s SpriteObject) Src() (x0, y0, x1, y1 int) { return s.FrameSrc(s.Frame()) }
-
-// StaticSprite just displays whatever frame number it is given, forever.
-type StaticSprite struct {
-	*Sheet
-	StaticOffset
-	StaticPlayback
-	P vec.I2
-}
-
-func (s *StaticSprite) Pos() vec.I2 { return s.P }
-func (s *StaticSprite) Update(int)  {}
+func (s *Sprite) Fixed() bool   { return s.SpriteDelegate.Fixed(s) }
+func (s *Sprite) Retire() bool  { return s.View.Retire() }
+func (s *Sprite) Visible() bool { return s.View.Visible() }
+func (s *Sprite) Z() int        { return s.SpriteDelegate.Z(s) }
