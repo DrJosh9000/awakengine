@@ -14,11 +14,7 @@
 
 package awakengine
 
-import (
-	"fmt"
-
-	"github.com/DrJosh9000/vec"
-)
+import "github.com/DrJosh9000/vec"
 
 // View represents a rectangular region in a view hierarchy. It caches its
 // real position information because why not.

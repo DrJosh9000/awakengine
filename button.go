@@ -14,7 +14,11 @@
 
 package awakengine
 
-import "github.com/DrJosh9000/vec"
+import (
+	"log"
+
+	"github.com/DrJosh9000/vec"
+)
 
 type Button struct {
 	*Bubble
@@ -24,6 +28,9 @@ type Button struct {
 }
 
 func NewButton(text string, action func(), bounds vec.Rect, parent *View) *Button {
+	if config.Debug {
+		log.Printf("NewButton: text %q, bounds %v", text, bounds)
+	}
 	sz := bounds.Size()
 	bk, _ := game.BubbleKey()
 	b := &Button{
@@ -38,16 +45,17 @@ func NewButton(text string, action func(), bounds vec.Rect, parent *View) *Butto
 			Font: game.Font(),
 		},
 	}
-	b.Bubble.SetParent(parent)
-	b.Bubble.SetZ(1)
-	b.Text.SetParent(b.Bubble.View)
-	b.Text.SetZ(1)
+	b.Bubble.View.SetParent(parent)
+	b.Bubble.View.SetBounds(bounds)
+	b.Bubble.View.SetZ(1)
+	b.Text.View.SetParent(b.Bubble.View)
+	b.Text.View.SetZ(1)
 	// Initial size is inset from the bubble by the bubble part size on all sides.
 	sz = sz.Sub(bubblePartSize.Mul(2))
-	b.Text.SetSize(sz)
+	b.Text.View.SetSize(sz)
 	b.Text.Layout(true)
 	// Text should now have the minimal size. Centre the text within button, but offset slightly.
-	b.Text.SetPosition(sz.Sub(b.Text.View.Size()).Div(2).Sub(vec.I2{1, 1}))
+	b.Text.View.SetPosition(bounds.Size().Sub(b.Text.View.Size()).Div(2).Sub(vec.I2{1, 1}))
 	return b
 }
 

@@ -48,58 +48,11 @@ func ImageAsMap(imgkey string) ([]uint8, vec.I2, error) {
 	return p.Pix, vec.I2(p.Rect.Max), nil
 }
 
-// loadTerrain loads from a paletted image file.
-func loadTerrain(level *Level, parent *View) (*Terrain, error) {
-	bs := vec.I2{level.TileSize, level.TileSize + level.BlockHeight}
-	t := &Terrain{
-		View:      &View{},
-		Level:     level,
-		blockSize: bs,
-	}
-	t.View.SetParent(parent)
-	if level.BlocksetKey != "" {
-		t.blocksetSize = sizes[level.BlocksetKey].EDiv(bs)
-	}
-	if level.TilesetKey != "" {
-		t.tilesetSize = sizes[level.TilesetKey].Div(level.TileSize)
-	}
-	return t, nil
-}
-
-// register adds terrain objects to the scene.
-func (t *Terrain) AddToScene(s *Scene) {
-	for i := range t.TileMap {
-		if t.TileMap[i] == 0 {
-			continue
-		}
-		s.AddPart(&tilePart{
-			Terrain: t,
-			i:       i,
-			d:       vec.Div(i, t.MapSize.X).Mul(t.TileSize),
-		})
-	}
-	for i := range t.BlockMap {
-		if t.BlockMap[i] == 0 {
-			continue
-		}
-		d := vec.Div(i, t.MapSize.X).Mul(t.TileSize)
-		s.AddPart(&blockPart{
-			Terrain: t,
-			i:       i,
-			d:       d.Sub(vec.I2{0, t.BlockHeight}),
-			z:       d.Y,
-		})
-	}
-}
-
-func (t *Terrain) Fixed() bool   { return true }
-func (t *Terrain) Retire() bool  { return false }
-func (t *Terrain) Visible() bool { return true }
-
 type tilePart struct {
 	*Terrain
-	i int // Keep an index in case the map updates dynamically!
-	d vec.I2
+	i   int // Keep an index in case the map updates dynamically!
+	d   vec.I2
+	vis bool
 }
 
 func (t *tilePart) ImageKey() string { return t.TilesetKey }
@@ -116,12 +69,14 @@ func (t *tilePart) Src() (x0, y0, x1, y1 int) {
 	return
 }
 
-func (t *tilePart) Z() int { return -100 } // hax
+func (t *tilePart) Visible() bool { return t.vis }
+func (t *tilePart) Z() int        { return -100 } // hax
 
 type blockPart struct {
 	*Terrain
 	d    vec.I2
 	i, z int
+	vis  bool
 }
 
 func (b *blockPart) ImageKey() string { return b.BlocksetKey }
@@ -138,7 +93,8 @@ func (b *blockPart) Src() (x0, y0, x1, y1 int) {
 	return
 }
 
-func (b *blockPart) Z() int { return b.z }
+func (b *blockPart) Visible() bool { return b.vis }
+func (b *blockPart) Z() int        { return b.z }
 
 // Terrain is the base layer of the game world.
 type Terrain struct {
@@ -148,6 +104,120 @@ type Terrain struct {
 	blockSize    vec.I2 // full size of each block (frame size for blockset)
 	blocksetSize vec.I2 // size of the block map in blocks.
 	tilesetSize  vec.I2 // size of the tile map in tiles.
+
+	tileParts  map[int]*tilePart
+	blockParts map[int]*blockPart
+}
+
+// loadTerrain loads from a paletted image file.
+func loadTerrain(level *Level, parent *View) (*Terrain, error) {
+	bs := vec.I2{level.TileSize, level.TileSize + level.BlockHeight}
+	t := &Terrain{
+		View:       &View{},
+		Level:      level,
+		blockSize:  bs,
+		tileParts:  make(map[int]*tilePart),
+		blockParts: make(map[int]*blockPart),
+	}
+	t.View.SetParent(parent)
+	if level.BlocksetKey != "" {
+		t.blocksetSize = sizes[level.BlocksetKey].EDiv(bs)
+	}
+	if level.TilesetKey != "" {
+		t.tilesetSize = sizes[level.TilesetKey].Div(level.TileSize)
+	}
+
+	for i := range t.TileMap {
+		if t.TileMap[i] == 0 {
+			continue
+		}
+		t.tileParts[i] = &tilePart{
+			Terrain: t,
+			i:       i,
+			d:       vec.Div(i, t.MapSize.X).Mul(t.TileSize),
+		}
+	}
+	for i := range t.BlockMap {
+		if t.BlockMap[i] == 0 {
+			continue
+		}
+		d := vec.Div(i, t.MapSize.X).Mul(t.TileSize)
+		t.blockParts[i] = &blockPart{
+			Terrain: t,
+			i:       i,
+			d:       d.Sub(vec.I2{0, t.BlockHeight}),
+			z:       d.Y,
+		}
+	}
+	return t, nil
+}
+
+// register adds terrain objects to the scene.
+func (t *Terrain) AddToScene(s *Scene) {
+	for _, p := range t.tileParts {
+		s.AddPart(p)
+	}
+	for _, p := range t.blockParts {
+		s.AddPart(p)
+	}
+}
+
+func (t *Terrain) Fixed() bool  { return true }
+func (t *Terrain) Retire() bool { return false }
+
+type ray struct {
+	*Terrain
+	vis     bool
+	n, dist int
+}
+
+func (r *ray) touch(p vec.I2) bool {
+	//log.Printf("touching %v", p)
+	if p.X < 0 || p.X >= r.MapSize.X || p.Y < 0 || p.Y >= r.MapSize.Y {
+		return false
+	}
+	i := p.X + r.MapSize.X*p.Y
+	if tp, ok := r.tileParts[i]; ok {
+		tp.vis = tp.vis || r.vis
+	}
+	if bp, ok := r.blockParts[i]; ok {
+		bp.vis = bp.vis || r.vis
+	}
+	if r.BlockInfos[r.BlockMap[i]].Blocking {
+		r.vis = false
+	}
+	r.n++
+	return r.n <= r.dist
+}
+
+// UpdatePartVisibility makes tile & block parts visible if they can be seen from origin.
+func (t *Terrain) UpdatePartVisibility(origin vec.I2, dist int) {
+	/*for _, p := range t.tileParts {
+		p.vis = false
+	}
+	for _, p := range t.blockParts {
+		p.vis = false
+	}*/
+	var r *ray
+	originCell := t.TileCoord(origin)
+	cellSize := vec.I2{t.TileSize, t.TileSize}
+	offset := cellSize.Div(2)
+	for x := originCell.X - dist; x <= originCell.X+dist; x++ {
+		end := vec.I2{x, originCell.Y - dist}.Mul(t.TileSize).Add(offset)
+		r = &ray{t, true, 0, dist}
+		vec.CellsTouchingSegment(cellSize, origin, end, r.touch)
+		end = vec.I2{x, originCell.Y + dist}.Mul(t.TileSize).Add(offset)
+		r = &ray{t, true, 0, dist}
+		vec.CellsTouchingSegment(cellSize, origin, end, r.touch)
+	}
+	for y := originCell.Y - dist; y <= originCell.Y+dist; y++ {
+		end := vec.I2{originCell.X - dist, y}.Mul(t.TileSize).Add(offset)
+		r = &ray{t, true, 0, dist}
+		vec.CellsTouchingSegment(cellSize, origin, end, r.touch)
+		end = vec.I2{originCell.X + dist, y}.Mul(t.TileSize).Add(offset)
+		r = &ray{t, true, 0, dist}
+		vec.CellsTouchingSegment(cellSize, origin, end, r.touch)
+	}
 }
 
 // TileCoord returns information about the tile at a world coordinate.

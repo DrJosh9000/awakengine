@@ -60,7 +60,7 @@ type Text struct {
 	Font
 	Text   string
 	Invert bool
-	chars  []oneChar
+	chars  []*oneChar
 	next   int
 	added  bool
 }
@@ -71,7 +71,7 @@ func (t *Text) AddToScene(s *Scene) {
 	}
 	t.added = true
 	for i := range t.chars {
-		s.AddPart(&t.chars[i])
+		s.AddPart(t.chars[i])
 	}
 }
 
@@ -88,18 +88,17 @@ func (t *Text) Advance() error {
 // the size to exactly contain the text. Text will be wrapped to the
 // existing Size.X as a width.
 func (t *Text) Layout(visible bool) {
+	// Reset things
 	t.added = false
 	for i := range t.chars {
 		t.chars[i].retire = true
 	}
-	// Reset things
 	t.chars = t.chars[:0]
 	t.next = 0
 
 	// Compute new characters.
 	width := t.View.Size().X
 	maxW := 0
-	//chars := make([]oneChar, 0, len(t.Text))
 	cm := t.Metrics()
 	x, y := 0, 0
 	wordStartC, wordStartI := 0, 0 // chars index, Text index
@@ -137,10 +136,11 @@ func (t *Text) Layout(visible bool) {
 			x += ci.XAdvance
 			continue
 		}
-		t.chars = append(t.chars, oneChar{
+		t.chars = append(t.chars, &oneChar{
 			Text:    t,
 			pos:     vec.I2{x, y},
 			c:       c,
+			retire:  false,
 			visible: visible,
 		})
 		x += ci.XAdvance
@@ -149,6 +149,5 @@ func (t *Text) Layout(visible bool) {
 	if x > maxW {
 		maxW = x
 	}
-	//t.chars = chars
 	t.View.SetSize(vec.I2{maxW, y + t.LineHeight()})
 }

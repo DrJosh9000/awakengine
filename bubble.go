@@ -52,7 +52,7 @@ func (b *bubblePart) Src() (x0, y0, x1, y1 int) {
 
 func (b *bubblePart) Dst() (x0, y0, x1, y1 int) {
 	j, k := vec.Div(b.i, 3).C()
-	x0, y0, x1, y1 = b.View.LogicalBounds().C()
+	x1, y1 = b.View.Size().C()
 	switch j {
 	case 0:
 		x1 = x0 + bubblePartSize.X

@@ -113,15 +113,15 @@ func (d *DialogueDisplay) Layout(line *DialogueLine) {
 	d.text.SetPositionAndSize(textPos, vec.I2{size.X - textPos.X - 15, 0})
 	d.text.Layout(line.Slowness < 0)
 
-	p := vec.I2{textPos.X + 15, size.Y - 20}
+	p := vec.I2{textPos.X + 15, size.Y - 40}
 	for _, s := range line.Buttons {
 		btn := NewButton(
 			s.Label,
 			s.Action,
-			vec.Rect{p, p.Add(vec.I2{40, 11})},
+			vec.Rect{p, p.Add(vec.I2{65, 25})},
 			d.bubble.View)
 		d.buttons = append(d.buttons, btn)
-		p.X += 65
+		p.X += 75
 	}
 }
 

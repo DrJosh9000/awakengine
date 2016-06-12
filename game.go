@@ -67,11 +67,11 @@ var (
 	obstacles, paths *vec.Graph
 
 	triggers      map[string]*Trigger
-	dialogueStack []DialogueLine
+	dialogueStack []*DialogueLine
 	dialogue      *DialogueDisplay
 
-	player  Unit
-	sprites []Sprite
+	player       Unit
+	playerSprite *Sprite
 )
 
 type Config struct {
@@ -102,6 +102,7 @@ type Unit interface {
 	Path() []vec.I2
 
 	//Pos() vec.I2
+	//Sprite() *Sprite
 }
 
 // Level describes things needed for a base terrain/level.
@@ -131,7 +132,7 @@ type Game interface {
 	Level() (*Level, error)
 
 	// Player provides the player unit.
-	Player() Unit
+	Player() (Unit, *Sprite)
 
 	Scene() *Scene
 
@@ -152,7 +153,7 @@ func load(g Game) error {
 		return fmt.Errorf("loading images: %v", err)
 	}
 
-	player = game.Player()
+	player, playerSprite = game.Player()
 	triggers = game.Triggers()
 
 	l, err := game.Level()
@@ -270,8 +271,17 @@ func playNextDialogue() {
 	if config.Debug {
 		log.Printf("laying out a dialogue")
 	}
-	dialogue.Layout(&dialogueStack[0])
+	dialogue.Layout(dialogueStack[0])
 	dialogue.AddToScene(scene)
+	dialogueStack = dialogueStack[1:]
+}
+
+func PushDialogueBack(dl []*DialogueLine) {
+	dialogueStack = append(dialogueStack, dl...)
+}
+
+func PushDialogueFront(dl []*DialogueLine) {
+	dialogueStack = append(dl, dialogueStack...)
 }
 
 func evaluateTriggers() {
@@ -290,12 +300,12 @@ trigLoop:
 			}
 		}
 		if config.Debug {
-			log.Printf("firing %s with %d dialogues", k, len(trig.Dialogues))
+			log.Printf("firing %q", k)
 		}
 		if trig.Fire != nil {
 			trig.Fire(modelFrame)
 		}
-		dialogueStack = trig.Dialogues
+		//dialogueStack = trig.Dialogues
 		player.GoIdle()
 		playNextDialogue()
 		trig.Fired = true
@@ -350,16 +360,16 @@ func modelUpdate() {
 		// Got any triggers?
 		evaluateTriggers()
 		clientUpdate(e)
+		terrain.UpdatePartVisibility(playerSprite.Pos.I2(), 5)
 	} else if dialogue.Handle(e) {
 		// Play
-		dialogueStack = dialogueStack[1:]
+		//dialogueStack = dialogueStack[1:]
 		if len(dialogueStack) == 0 {
 			evaluateTriggers()
 		}
 		playNextDialogue()
 	}
-
-	scene.Update()
+	scene.Update() // Reorganise draw lists
 	/*
 		if config.Debug {
 			log.Printf("{len, cap}(fixedObjects): %d, %d", len(fixedObjects), cap(fixedObjects))
