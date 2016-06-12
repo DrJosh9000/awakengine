@@ -75,7 +75,9 @@ func (b *Button) Handle(e Event) (handled bool) {
 		case e.Type == EventMouseUp:
 			b.Text.Invert = false
 			b.Bubble.Key = k1
-			b.Action()
+			if b.Action != nil {
+				b.Action()
+			}
 			return true
 		}
 		return false

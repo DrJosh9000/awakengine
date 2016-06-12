@@ -276,11 +276,13 @@ func playNextDialogue() {
 	dialogueStack = dialogueStack[1:]
 }
 
-func PushDialogueBack(dl []*DialogueLine) {
+// PushDialogueToBack makes some dialogue the dialogue to play after all the current dialogue is finished.
+func PushDialogueToBack(dl ...*DialogueLine) {
 	dialogueStack = append(dialogueStack, dl...)
 }
 
-func PushDialogueFront(dl []*DialogueLine) {
+// PushDialogue makes some dialogue the next dialogue to play.
+func PushDialogue(dl ...*DialogueLine) {
 	dialogueStack = append(dl, dialogueStack...)
 }
 

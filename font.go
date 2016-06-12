@@ -140,7 +140,6 @@ func (t *Text) Layout(visible bool) {
 			Text:    t,
 			pos:     vec.I2{x, y},
 			c:       c,
-			retire:  false,
 			visible: visible,
 		})
 		x += ci.XAdvance
