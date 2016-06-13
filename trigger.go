@@ -14,10 +14,21 @@
 
 package awakengine
 
+import "github.com/DrJosh9000/vec"
+
 // Trigger is everything to do with reacting to the player or time or ...
+// On the PC entering any of the Tiles, Fired, Active, and Depends will be
+// checked and then Fire will happen.
+// If no Tiles are listed, it will be added to a global list of triggers
+// checked on every frame.
 type Trigger struct {
-	Active  func(gameFrame int) bool // can we fire?
-	Depends []string                 // have all our buddies fired?
-	Fire    func(gameFrame int)      // we have the com.
-	Fired   bool                     // others are depending on us.
+	Name    string
+	Tiles   []vec.I2
+	Active  func(gameFrame int) bool
+	Depends []string
+	Fire    func(gameFrame int)
+
+	fired bool
 }
+
+func (t *Trigger) Reset() { t.fired = false }

@@ -152,13 +152,23 @@ func loadTerrain(level *Level, parent *View) (*Terrain, error) {
 	return t, nil
 }
 
-// register adds terrain objects to the scene.
+// AddToScene adds terrain objects to the scene.
 func (t *Terrain) AddToScene(s *Scene) {
 	for _, p := range t.tileParts {
 		s.AddPart(p)
 	}
 	for _, p := range t.blockParts {
 		s.AddPart(p)
+	}
+}
+
+// MakeAllVisible enables visiblity for all parts of the terrain.
+func (t *Terrain) MakeAllVisible() {
+	for _, p := range t.tileParts {
+		p.vis = true
+	}
+	for _, p := range t.blockParts {
+		p.vis = true
 	}
 }
 
@@ -203,18 +213,18 @@ func (t *Terrain) UpdatePartVisibility(origin vec.I2, dist int) {
 	cellSize := vec.I2{t.TileSize, t.TileSize}
 	offset := cellSize.Div(2)
 	for x := originCell.X - dist; x <= originCell.X+dist; x++ {
-		end := vec.I2{x, originCell.Y - dist}.Mul(t.TileSize).Add(offset)
+		end := vec.I2{x, originCell.Y - dist}.Mul(t.TileSize).Add(vec.I2{offset.X, cellSize.Y - 1})
 		r = &ray{t, true, 0, dist}
 		vec.CellsTouchingSegment(cellSize, origin, end, r.touch)
-		end = vec.I2{x, originCell.Y + dist}.Mul(t.TileSize).Add(offset)
+		end = vec.I2{x, originCell.Y + dist}.Mul(t.TileSize).Add(vec.I2{offset.X, 0})
 		r = &ray{t, true, 0, dist}
 		vec.CellsTouchingSegment(cellSize, origin, end, r.touch)
 	}
 	for y := originCell.Y - dist; y <= originCell.Y+dist; y++ {
-		end := vec.I2{originCell.X - dist, y}.Mul(t.TileSize).Add(offset)
+		end := vec.I2{originCell.X - dist, y}.Mul(t.TileSize).Add(vec.I2{cellSize.X - 1, offset.Y})
 		r = &ray{t, true, 0, dist}
 		vec.CellsTouchingSegment(cellSize, origin, end, r.touch)
-		end = vec.I2{originCell.X + dist, y}.Mul(t.TileSize).Add(offset)
+		end = vec.I2{originCell.X + dist, y}.Mul(t.TileSize).Add(vec.I2{cellSize.X - 1, 0})
 		r = &ray{t, true, 0, dist}
 		vec.CellsTouchingSegment(cellSize, origin, end, r.touch)
 	}

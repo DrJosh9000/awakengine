@@ -58,26 +58,26 @@ var (
 	mouseDown     bool
 	lastCursorPos vec.I2
 
-	pixelSize = 3
-	//camSize   = vec.I2{267, 150}
-	//camPos    = vec.I2{0, 0}
-	title = "AwakEngine"
-
 	terrain          *Terrain
 	obstacles, paths *vec.Graph
 
-	triggers      map[string]*Trigger
 	dialogueStack []*DialogueLine
 	dialogue      *DialogueDisplay
 
-	player       Unit
-	playerSprite *Sprite
+	player         Unit
+	playerSprite   *Sprite
+	lastPlayerTile vec.I2
+
+	globalTriggers []*Trigger
+	triggersByName map[string]*Trigger
+	triggersByTile map[vec.I2][]*Trigger
 )
 
 type Config struct {
 	Debug           bool
 	FramesPerUpdate int
 	LevelGeomDump   string
+	LevelPreview    bool
 	RecordingFile   string
 	RecordingFrames int
 }
@@ -137,7 +137,7 @@ type Game interface {
 	Scene() *Scene
 
 	// Triggers provide some dynamic behaviour.
-	Triggers() map[string]*Trigger
+	Triggers() []*Trigger
 
 	// Viewport is the size of the window and the pixels in the window.
 	Viewport() (pixelSize int, title string)
@@ -147,14 +147,32 @@ type Game interface {
 func load(g Game) error {
 	game = g
 	scene = game.Scene()
-	pixelSize, title = game.Viewport()
 
 	if err := loadAllImages(); err != nil {
 		return fmt.Errorf("loading images: %v", err)
 	}
 
 	player, playerSprite = game.Player()
-	triggers = game.Triggers()
+
+	trigs := game.Triggers()
+	triggersByName = make(map[string]*Trigger, len(trigs))
+	triggersByTile = make(map[vec.I2][]*Trigger, len(trigs))
+	for i, t := range trigs {
+		if t.Name == "" {
+			return fmt.Errorf("trigger %d has no name", i)
+		}
+		triggersByName[t.Name] = t
+		if len(t.Tiles) == 0 {
+			globalTriggers = append(globalTriggers, t)
+			continue
+		}
+		for _, p := range t.Tiles {
+			triggersByTile[p] = append(triggersByTile[p], t)
+		}
+	}
+	if config.Debug {
+		log.Printf("processed %d triggers, %d global, %d interesting tiles", len(trigs), len(globalTriggers), len(triggersByTile))
+	}
 
 	l, err := game.Level()
 	if err != nil {
@@ -192,6 +210,9 @@ func load(g Game) error {
 
 	//scene.CameraFocus(player.Pos())
 	terrain.AddToScene(scene)
+	if config.LevelPreview {
+		t.MakeAllVisible()
+	}
 	scene.sortFixedIfNeeded()
 	return nil
 }
@@ -212,7 +233,8 @@ func Run(g Game, cfg *Config) error {
 		up = ebitenutil.RecordScreenAsGIF(up, f, cfg.RecordingFrames)
 	}
 	cs := g.Scene().View.Size()
-	return ebiten.Run(up, cs.X, cs.Y, pixelSize, title)
+	ps, t := g.Viewport()
+	return ebiten.Run(up, cs.X, cs.Y, ps, t)
 }
 
 /*
@@ -251,45 +273,10 @@ func drawDebug(screen *ebiten.Image) error {
 }
 */
 
-func playNextDialogue() {
-	if len(dialogueStack) == 0 {
-		if dialogue != nil {
-			if config.Debug {
-				log.Printf("disposing a dialogue")
-			}
-			dialogue.Dispose()
-		}
-		dialogue = nil
-		return
-	}
-	if dialogue == nil {
-		if config.Debug {
-			log.Printf("creating a dialogue")
-		}
-		dialogue = NewDialogueDisplay(scene)
-	}
-	if config.Debug {
-		log.Printf("laying out a dialogue")
-	}
-	dialogue.Layout(dialogueStack[0])
-	dialogue.AddToScene(scene)
-	dialogueStack = dialogueStack[1:]
-}
-
-// PushDialogueToBack makes some dialogue the dialogue to play after all the current dialogue is finished.
-func PushDialogueToBack(dl ...*DialogueLine) {
-	dialogueStack = append(dialogueStack, dl...)
-}
-
-// PushDialogue makes some dialogue the next dialogue to play.
-func PushDialogue(dl ...*DialogueLine) {
-	dialogueStack = append(dl, dialogueStack...)
-}
-
-func evaluateTriggers() {
+func evaluateTriggers(triggers []*Trigger) bool {
 trigLoop:
-	for k, trig := range triggers {
-		if trig.Fired {
+	for _, trig := range triggers {
+		if trig.fired {
 			continue
 		}
 		if trig.Active != nil && !trig.Active(modelFrame) {
@@ -297,12 +284,12 @@ trigLoop:
 		}
 		// All dependencies fired?
 		for _, dep := range trig.Depends {
-			if !triggers[dep].Fired {
+			if !triggersByName[dep].fired {
 				continue trigLoop
 			}
 		}
 		if config.Debug {
-			log.Printf("firing %q", k)
+			log.Printf("firing %q", trig.Name)
 		}
 		if trig.Fire != nil {
 			trig.Fire(modelFrame)
@@ -310,9 +297,10 @@ trigLoop:
 		//dialogueStack = trig.Dialogues
 		player.GoIdle()
 		playNextDialogue()
-		trig.Fired = true
-		return
+		trig.fired = true
+		return true
 	}
+	return false
 }
 
 func clientUpdate(e Event) {
@@ -326,7 +314,6 @@ func clientUpdate(e Event) {
 		}
 	}
 	game.Handle(e)
-	modelFrame++
 }
 
 // modelUpdate does update stuff, but no drawing. It is called once per config.FramesPerUpdate.
@@ -360,27 +347,21 @@ func modelUpdate() {
 	// Do we proceed with the game, or with the dialogue display?
 	if dialogue == nil {
 		// Got any triggers?
-		evaluateTriggers()
+		evaluateTriggers(globalTriggers)
 		clientUpdate(e)
+		if pt := terrain.TileCoord(playerSprite.Pos.I2()); pt != lastPlayerTile {
+			evaluateTriggers(triggersByTile[pt])
+			lastPlayerTile = pt
+		}
+		modelFrame++
 		terrain.UpdatePartVisibility(playerSprite.Pos.I2(), 5)
 	} else if dialogue.Handle(e) {
-		// Play
-		//dialogueStack = dialogueStack[1:]
 		if len(dialogueStack) == 0 {
-			evaluateTriggers()
+			evaluateTriggers(globalTriggers)
 		}
 		playNextDialogue()
 	}
 	scene.Update() // Reorganise draw lists
-	/*
-		if config.Debug {
-			log.Printf("{len, cap}(fixedObjects): %d, %d", len(fixedObjects), cap(fixedObjects))
-			log.Printf("{len, cap}(looseObjects): %d, %d", len(looseObjects), cap(looseObjects))
-			log.Printf("{len, cap}(displayedFixed): %d, %d", len(displayedFixed), cap(displayedFixed))
-			log.Printf("{len, cap}(displayedLoose): %d, %d", len(displayedLoose), cap(displayedLoose))
-			log.Printf("{len, cap}(displayedMerged): %d, %d", len(displayedMerged), cap(displayedMerged))
-		}
-	*/
 }
 
 // update is the main update function.

@@ -94,4 +94,13 @@ func (s *Scene) Update() {
 	s.dispLoose = s.loose.cull(s.dispLoose[:0], s)
 	s.dispLoose.Sort()
 	s.dispMerged = merge(s.dispMerged[:0], s.dispFixed, s.dispLoose)
+	/*
+		if config.Debug {
+			log.Printf("{len, cap}(fixedObjects): %d, %d", len(fixedObjects), cap(fixedObjects))
+			log.Printf("{len, cap}(looseObjects): %d, %d", len(looseObjects), cap(looseObjects))
+			log.Printf("{len, cap}(displayedFixed): %d, %d", len(displayedFixed), cap(displayedFixed))
+			log.Printf("{len, cap}(displayedLoose): %d, %d", len(displayedLoose), cap(displayedLoose))
+			log.Printf("{len, cap}(displayedMerged): %d, %d", len(displayedMerged), cap(displayedMerged))
+		}
+	*/
 }

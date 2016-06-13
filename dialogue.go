@@ -14,7 +14,11 @@
 
 package awakengine
 
-import "github.com/DrJosh9000/vec"
+import (
+	"log"
+
+	"github.com/DrJosh9000/vec"
+)
 
 type ButtonSpec struct {
 	Label  string
@@ -176,4 +180,41 @@ func (d *DialogueDisplay) Handle(event Event) bool {
 	}
 	d.frame++
 	return false
+}
+
+// Management of global dialogue state (dialogue, dialogueStack)
+
+func playNextDialogue() {
+	if len(dialogueStack) == 0 {
+		if dialogue != nil {
+			if config.Debug {
+				log.Printf("disposing a dialogue")
+			}
+			dialogue.Dispose()
+		}
+		dialogue = nil
+		return
+	}
+	if dialogue == nil {
+		if config.Debug {
+			log.Printf("creating a dialogue")
+		}
+		dialogue = NewDialogueDisplay(scene)
+	}
+	if config.Debug {
+		log.Printf("laying out a dialogue")
+	}
+	dialogue.Layout(dialogueStack[0])
+	dialogue.AddToScene(scene)
+	dialogueStack = dialogueStack[1:]
+}
+
+// PushDialogueToBack makes some dialogue the dialogue to play after all the current dialogue is finished.
+func PushDialogueToBack(dl ...*DialogueLine) {
+	dialogueStack = append(dialogueStack, dl...)
+}
+
+// PushDialogue makes some dialogue the next dialogue to play.
+func PushDialogue(dl ...*DialogueLine) {
+	dialogueStack = append(dl, dialogueStack...)
 }
