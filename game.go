@@ -186,7 +186,7 @@ func load(g Game) error {
 	terrain = t
 
 	obstacles, paths = l.Obstacles, l.Paths
-	if obstacles == nil || paths == nil {
+	if obstacles == nil || paths == nil || config.LevelGeomDump != "" {
 		// TODO: compute unfattened static obstacles and fully dynamic paths to support
 		// multiple units.
 		// Invert the footprint to fatten the obstacles with.
@@ -276,7 +276,7 @@ func drawDebug(screen *ebiten.Image) error {
 func evaluateTriggers(triggers []*Trigger) bool {
 trigLoop:
 	for _, trig := range triggers {
-		if trig.fired {
+		if trig.fired && !trig.Repeat {
 			continue
 		}
 		if trig.Active != nil && !trig.Active(modelFrame) {

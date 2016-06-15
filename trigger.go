@@ -27,6 +27,7 @@ type Trigger struct {
 	Active  func(gameFrame int) bool
 	Depends []string
 	Fire    func(gameFrame int)
+	Repeat  bool
 
 	fired bool
 }
