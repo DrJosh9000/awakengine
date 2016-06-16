@@ -14,49 +14,52 @@
 
 package awakengine
 
-//import "github.com/DrJosh9000/vec"
-//
-//type GridDelegate interface {
-//	Columns() int
-//	NumItems() int
-//	ItemSize() vec.I2
-//	Item(i int, par *View) *View
-//}
-//
-//type Grid struct {
-//	*View
-//	GridDelegate
-//	items []*GridItem
-//}
-//
-//// AddToScene (re)loads all the items.
-//func (g *Grid) AddToScene(s *Scene) {
-//	for _, i := range g.items {
-//		i.retire = true
-//	}
-//	g.items = make([]*GridItem, 0, g.NumItems())
-//	for i := 0; i < g.NumItems(); i++ {
-//		item := &GridItem{
-//			View:  &View{},
-//			Grid:  g,
-//			Index: i,
-//		}
-//		item.View.SetParent(g.View)
-//		o := g.Item(i, item.View)
-//		g.items = append(g.items, item)
-//		s.AddPart(o)
-//	}
-//}
-//
-//type GridItem struct {
-//	*View
-//	*Grid
-//	Index int
-//}
-//
-//func (i *GridItem) Dst() (x0, y0, x1, y1 int) {
-//	is := i.ItemSize()
-//	x0, y0 = vec.Div(i.Index, i.Columns()).EMul(is).C()
-//	x1, y1 = x0+is.X, y0+is.Y
-//	return
-//}
+import "github.com/DrJosh9000/vec"
+
+type GridDelegate interface {
+	Columns() int
+	NumItems() int
+	ItemSize() vec.I2
+	Item(i int, par *View)
+}
+
+type Grid struct {
+	*View
+	GridDelegate
+
+	items []*View
+}
+
+// Reload all the items.
+func (g *Grid) Reload() {
+	n := g.GridDelegate.NumItems()
+	c := g.GridDelegate.Columns()
+	sz := g.GridDelegate.ItemSize()
+	gs := vec.I2{}
+	for len(g.items) < n {
+		g.items = append(g.items, &View{})
+	}
+	for i := 0; i < n; i++ {
+		item := g.items[i]
+		item.SetVisible(true)
+		item.SetRetire(false)
+		item.SetParent(g.View)
+		p := vec.Div(i, c).EMul(sz)
+		item.SetPositionAndSize(p, sz)
+		item.SetZ(1)
+		g.Item(i, item)
+
+		// Ensure the grid itself is sized sufficiently. There's a mathsier way of
+		// doing it but this is simple.
+		if w := p.X + sz.X; w > gs.X {
+			gs.X = w
+		}
+		if h := p.Y + sz.Y; h > gs.Y {
+			gs.Y = h
+		}
+	}
+	g.View.SetSize(gs)
+	for i := n; i < len(g.items); i++ {
+		g.items[i].SetRetire(true)
+	}
+}

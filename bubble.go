@@ -25,6 +25,10 @@ type Bubble struct {
 	added bool
 }
 
+func (b *Bubble) Surround(r vec.Rect) {
+	b.View.SetBounds(r.Expand(bubblePartSize))
+}
+
 func (b *Bubble) AddToScene(s *Scene) {
 	if b.added {
 		return

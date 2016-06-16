@@ -71,4 +71,4 @@ type ImageView struct {
 }
 
 func (v *ImageView) Src() (x0, y0, x1, y1 int) { return v.SheetFrame.Src() }
-func (v *ImageView) Dst() (x0, y0, x1, y1 int) { return v.View.LogicalBounds().C() }
+func (v *ImageView) Dst() (x0, y0, x1, y1 int) { x1, y1 = v.View.Size().C(); return }

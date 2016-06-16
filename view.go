@@ -175,12 +175,15 @@ func (v *View) removeFromParent() {
 }
 
 func (v *View) SetParent(parent *View) {
+	if parent == v.parent {
+		return
+	}
 	v.invalidate()
 	v.removeFromParent()
 	v.parent = parent
 	if parent == nil {
 		return
 	}
-	v.childIndex = len(v.parent.children)
-	v.parent.children = append(v.parent.children, v)
+	v.childIndex = len(parent.children)
+	parent.children = append(parent.children, v)
 }

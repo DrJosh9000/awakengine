@@ -68,10 +68,10 @@ func NewDialogueDisplay(scene *Scene) *DialogueDisplay {
 	}
 
 	camSize := scene.View.Size()
-	size := vec.I2{camSize.X - 10, 84}
+	size := vec.I2{camSize.X - 20, 74}
 
 	d.SetParent(scene.HUD)
-	d.SetPositionAndSize(vec.I2{5, camSize.Y - 89}, size)
+	d.SetPositionAndSize(vec.I2{10, camSize.Y - 84}, size)
 
 	d.bubble.SetParent(d.View)
 	d.bubble.SetSize(size)
