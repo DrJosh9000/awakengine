@@ -18,9 +18,10 @@ import "github.com/DrJosh9000/vec"
 
 type GridDelegate interface {
 	Columns() int
-	NumItems() int
-	ItemSize() vec.I2
 	Item(i int, par *View)
+	ItemSize() vec.I2
+	ItemHandle(i int, e *Event) bool // item #i should handles event e
+	NumItems() int
 }
 
 type Grid struct {
@@ -28,6 +29,19 @@ type Grid struct {
 	GridDelegate
 
 	items []*View
+}
+
+func (g *Grid) Handle(e *Event) bool {
+	if !g.Bounds().Contains(e.ScreenPos) {
+		return false
+	}
+	// Convert the coordinate back into an item index.
+	t := e.ScreenPos.Sub(g.Position()).EDiv(g.GridDelegate.ItemSize())
+	i := t.X + t.Y*g.GridDelegate.Columns()
+	if i < 0 && i >= g.GridDelegate.NumItems() {
+		return false
+	}
+	return g.GridDelegate.ItemHandle(i, e)
 }
 
 // Reload all the items.

@@ -72,6 +72,7 @@ func NewDialogueDisplay(scene *Scene) *DialogueDisplay {
 
 	d.SetParent(scene.HUD)
 	d.SetPositionAndSize(vec.I2{10, camSize.Y - 84}, size)
+	d.SetZ(100) // The topmost of the top...
 
 	d.bubble.SetParent(d.View)
 	d.bubble.SetSize(size)
@@ -147,7 +148,7 @@ func (d *DialogueDisplay) finish() {
 
 // Update updates things in the dialogue, based on user input or passage of time.
 // Returns true if the event is handled.
-func (d *DialogueDisplay) Handle(event Event) bool {
+func (d *DialogueDisplay) Handle(event *Event) bool {
 	for _, b := range d.buttons {
 		if b.Handle(event) {
 			// log.Printf("dialogue: button handled event")

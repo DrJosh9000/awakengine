@@ -76,9 +76,9 @@ func (v *View) compute() {
 	v.cachedZ = v.z + v.parent.Z()
 }
 
-func (v *View) LogicalBounds() vec.Rect { return v.bounds }
-func (v *View) LogicalZ() int           { return v.z }
-func (v *View) Size() vec.I2            { return v.bounds.Size() }
+func (v *View) RelativeBounds() vec.Rect { return v.bounds }
+func (v *View) RelativeZ() int           { return v.z }
+func (v *View) Size() vec.I2             { return v.bounds.Size() }
 
 // Convenience methods for embedding in Parts.
 func (v *View) Container() *View { return v }

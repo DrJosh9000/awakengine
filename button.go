@@ -65,7 +65,7 @@ func (b *Button) Dispose() {
 	b.Text = nil
 }
 
-func (b *Button) Handle(e Event) (handled bool) {
+func (b *Button) Handle(e *Event) (handled bool) {
 	k1, k2 := game.BubbleKey()
 	if b.Bubble.View.Bounds().Contains(e.ScreenPos) {
 		switch {

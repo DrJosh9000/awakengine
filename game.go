@@ -84,7 +84,9 @@ type Config struct {
 
 // Handler handles events.
 type Handler interface {
-	Handle(e Event)
+	// Handle handles the event e and returns true if the event is "consumed" or
+	// false if the event "lives on" to be handled elsewhere.
+	Handle(e *Event) bool
 }
 
 // Unit can be given orders.
@@ -295,15 +297,13 @@ trigLoop:
 			trig.Fire(modelFrame)
 		}
 		//dialogueStack = trig.Dialogues
-		player.GoIdle()
-		playNextDialogue()
 		trig.fired = true
 		return true
 	}
 	return false
 }
 
-func clientUpdate(e Event) {
+func clientUpdate(e *Event) {
 	// Is it game time yet?
 	if dialogue != nil {
 		return
@@ -328,7 +328,7 @@ func modelUpdate() {
 		md = true
 		lastCursorPos = vec.NewI2(tt[0].Position())
 	}
-	e := Event{
+	e := &Event{
 		Time:      modelFrame,
 		ScreenPos: lastCursorPos,
 		WorldPos:  lastCursorPos.Sub(scene.World.Position()),
@@ -343,6 +343,7 @@ func modelUpdate() {
 	mouseDown = md
 
 	// TODO: What did they just click on?
+	// TODO: propagate events along the view hierarchy...
 
 	// Do we proceed with the game, or with the dialogue display?
 	if dialogue == nil {
@@ -352,6 +353,10 @@ func modelUpdate() {
 		if pt := terrain.TileCoord(playerSprite.Pos.I2()); pt != lastPlayerTile {
 			evaluateTriggers(triggersByTile[pt])
 			lastPlayerTile = pt
+		}
+		if len(dialogueStack) > 0 {
+			player.GoIdle()
+			playNextDialogue()
 		}
 		modelFrame++
 		terrain.UpdatePartVisibility(playerSprite.Pos.I2(), 5)
