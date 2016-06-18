@@ -29,7 +29,7 @@ type ButtonSpec struct {
 type DialogueLine struct {
 	Avatar   *SheetFrame
 	Text     string
-	Buttons  []ButtonSpec
+	Buttons  []*ButtonSpec
 	AutoNext bool
 	Slowness int
 }

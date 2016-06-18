@@ -50,18 +50,20 @@ func (g *Grid) Reload() {
 	c := g.GridDelegate.Columns()
 	sz := g.GridDelegate.ItemSize()
 	gs := vec.I2{}
-	for len(g.items) < n {
-		g.items = append(g.items, &View{})
+	// Clear out all the existing views...
+	for _, v := range g.items {
+		v.SetRetire(true)
 	}
+	g.items = g.items[:0]
+	// Create fresh views.
 	for i := 0; i < n; i++ {
-		item := g.items[i]
-		item.SetVisible(true)
-		item.SetRetire(false)
+		item := &View{}
 		item.SetParent(g.View)
 		p := vec.Div(i, c).EMul(sz)
 		item.SetPositionAndSize(p, sz)
 		item.SetZ(1)
-		g.Item(i, item)
+		g.GridDelegate.Item(i, item)
+		g.items = append(g.items, item)
 
 		// Ensure the grid itself is sized sufficiently. There's a mathsier way of
 		// doing it but this is simple.
@@ -73,7 +75,4 @@ func (g *Grid) Reload() {
 		}
 	}
 	g.View.SetSize(gs)
-	for i := n; i < len(g.items); i++ {
-		g.items[i].SetRetire(true)
-	}
 }
