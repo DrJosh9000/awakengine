@@ -118,7 +118,7 @@ func (d *DialogueDisplay) Layout(line *DialogueLine) {
 	d.text.SetPositionAndSize(textPos, vec.I2{size.X - textPos.X - 15, 0})
 	d.text.Layout(line.Slowness < 0)
 
-	p := vec.I2{textPos.X + 15, size.Y - 40}
+	p := vec.I2{textPos.X, size.Y - 40}
 	for _, s := range line.Buttons {
 		btn := NewButton(
 			s.Label,
@@ -212,10 +212,12 @@ func playNextDialogue() {
 
 // PushDialogueToBack makes some dialogue the dialogue to play after all the current dialogue is finished.
 func PushDialogueToBack(dl ...*DialogueLine) {
+	player.GoIdle()
 	dialogueStack = append(dialogueStack, dl...)
 }
 
 // PushDialogue makes some dialogue the next dialogue to play.
 func PushDialogue(dl ...*DialogueLine) {
+	player.GoIdle()
 	dialogueStack = append(dl, dialogueStack...)
 }

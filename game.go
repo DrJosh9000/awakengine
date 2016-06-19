@@ -342,7 +342,6 @@ func modelUpdate() {
 	}
 	mouseDown = md
 
-	// TODO: What did they just click on?
 	// TODO: propagate events along the view hierarchy...
 
 	// Do we proceed with the game, or with the dialogue display?
@@ -355,7 +354,7 @@ func modelUpdate() {
 			lastPlayerTile = pt
 		}
 		if len(dialogueStack) > 0 {
-			player.GoIdle()
+			//player.GoIdle() now in PushDialogue{,ToBack}
 			playNextDialogue()
 		}
 		modelFrame++

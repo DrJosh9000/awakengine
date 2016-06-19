@@ -69,7 +69,7 @@ func (t *tilePart) Src() (x0, y0, x1, y1 int) {
 	return
 }
 
-func (t *tilePart) Visible() bool { return t.vis }
+func (t *tilePart) Visible() bool { return t.vis && t.Terrain.Visible() }
 func (t *tilePart) Z() int        { return -100 } // hax
 
 type blockPart struct {
@@ -93,7 +93,7 @@ func (b *blockPart) Src() (x0, y0, x1, y1 int) {
 	return
 }
 
-func (b *blockPart) Visible() bool { return b.vis }
+func (b *blockPart) Visible() bool { return b.vis && b.Terrain.Visible() }
 func (b *blockPart) Z() int        { return b.z }
 
 // Terrain is the base layer of the game world.
